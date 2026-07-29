@@ -115,7 +115,7 @@ logs_menu() {
 show_menu() {
     clear
     echo -e "${BLUE}╔════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║     UNAH-CONECTA · Panel de Control      ║${NC}"
+    echo -e "${BLUE}║     UNAH-CONECTA · Panel de Control    ║${NC}"
     echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
     echo ""
     echo "  INSTALACIÓN"
