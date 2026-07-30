@@ -2,16 +2,15 @@
 ###############################################################################
 # 07-vhosts.sh
 # Proyecto: UNAH-CONECTA
-# Función: Generación dinámica y configuración de Virtual Hosts para Apache2 
+# Función: Generación dinámica y configuración de Virtual Hosts para Apache2
 #          con conexión a PHP-FPM vía proxy_fcgi.
+#          Soporta configuración temporal por IP (WP en :80, Moodle en :8080)
+#          y configuración definitiva por dominio (ambos en :80 con ServerName).
 # Ejecución: sudo ./07-vhosts.sh (o mediante menu.sh)
 #
 # VARIABLES REQUERIDAS DE config.env:
 #   DOMAIN_WP, PATH_WP, DOMAIN_MOODLE, PATH_MOODLE
-#
-# VARIABLES NUEVAS A AGREGAR A config.env:
-#   PHP_VERSION (Debe coincidir con la instalada en 04-php.sh, ej: 8.3)
-#   SERVER_ADMIN_EMAIL (Email del administrador del servidor web)
+#   PHP_VERSION, SERVER_ADMIN_EMAIL
 ###############################################################################
 
 set -euo pipefail
@@ -42,25 +41,53 @@ fi
 
 SOCKET_PATH="/run/php/php${PHP_VERSION}-fpm.sock"
 if [ ! -S "$SOCKET_PATH" ]; then
-    error "El socket de PHP-FPM (${SOCKET_PATH}) no existe. Verifique que el script 04-php.sh se haya ejecutado correctamente."
+    error "El socket de PHP-FPM (${SOCKET_PATH}) no existe. Verifique que 04-php.sh se ejecutó."
 fi
 ok "Dependencias validadas. Socket de PHP-FPM encontrado."
 
-# --- Paso 2: Función generadora de Virtual Hosts ---
-# Parámetros: 1: domain, 2: path, 3: conf_filename, 4: allow_override_type
+# --- Paso 2: Detectar modo de operación (IP con puertos o dominios reales) ---
+# Extrae host y puerto de una cadena que puede ser "ip:puerto" o solo "dominio"
+extraer_host() { echo "${1%%:*}"; }
+extraer_puerto() {
+    if [[ "$1" == *:* ]]; then echo "${1##*:}"; else echo "80"; fi
+}
+
+HOST_WP=$(extraer_host "$DOMAIN_WP")
+PUERTO_WP=$(extraer_puerto "$DOMAIN_WP")
+HOST_MOODLE=$(extraer_host "$DOMAIN_MOODLE")
+PUERTO_MOODLE=$(extraer_puerto "$DOMAIN_MOODLE")
+
+info "WordPress  → http://${HOST_WP}:${PUERTO_WP}"
+info "Moodle     → http://${HOST_MOODLE}:${PUERTO_MOODLE}"
+
+# --- Paso 3: Habilitar puerto extra en Apache si Moodle usa puerto ≠ 80 ---
+PORTS_CONF="/etc/apache2/ports.conf"
+if [[ "$PUERTO_MOODLE" != "80" ]]; then
+    paso "07" "Habilitando puerto ${PUERTO_MOODLE} en Apache (Moodle)"
+    if grep -q "Listen ${PUERTO_MOODLE}" "$PORTS_CONF"; then
+        info "El puerto ${PUERTO_MOODLE} ya estaba declarado en ports.conf."
+    else
+        echo "Listen ${PUERTO_MOODLE}" >> "$PORTS_CONF" || error "Error al agregar Listen ${PUERTO_MOODLE} en ports.conf."
+        ok "Puerto ${PUERTO_MOODLE} agregado a ports.conf."
+    fi
+fi
+
+# --- Paso 4: Función generadora de Virtual Hosts ---
+# Parámetros: 1:host 2:puerto 3:path 4:conf_filename 5:allow_override
 generar_vhost() {
-    local domain="$1"
-    local path="$2"
-    local conf_filename="$3"
-    local allow_override_type="$4"
+    local host="$1"
+    local puerto="$2"
+    local path="$3"
+    local conf_filename="$4"
+    local allow_override_type="$5"
     local log_prefix="${conf_filename%.conf}"
     local dest_file="${BASE_DIR}/config/vhosts/${conf_filename}"
 
     mkdir -p "${BASE_DIR}/config/vhosts"
 
     cat > "$dest_file" <<EOF
-<VirtualHost *:80>
-    ServerName ${domain}
+<VirtualHost *:${puerto}>
+    ServerName ${host}
     ServerAdmin ${SERVER_ADMIN_EMAIL}
     DocumentRoot ${path}
 
@@ -78,21 +105,21 @@ generar_vhost() {
     CustomLog \${APACHE_LOG_DIR}/${log_prefix}_access.log combined
 </VirtualHost>
 EOF
-    info "Archivo generado dinámicamente en: ${dest_file}"
+    info "Configuración generada: ${dest_file}"
 }
 
-# --- Paso 3: Generación de archivos de configuración ---
+# --- Paso 5: Generación de archivos de configuración ---
 paso "07" "Generando configuraciones de Virtual Hosts (WordPress y Moodle)"
 
-# Generar VHost de WordPress (Requiere AllowOverride All para los permalinks)
-generar_vhost "${DOMAIN_WP}" "${PATH_WP}" "unahconecta.conf" "All"
+# WordPress: AllowOverride All para que funcionen los permalinks con .htaccess
+generar_vhost "$HOST_WP" "$PUERTO_WP" "$PATH_WP" "unahconecta.conf" "All"
 
-# Generar VHost de Moodle (No usa .htaccess, requiere AllowOverride None por seguridad/rendimiento)
-generar_vhost "${DOMAIN_MOODLE}" "${PATH_MOODLE}" "moodle.unahconecta.conf" "None"
+# Moodle: AllowOverride None (no usa .htaccess; mejora rendimiento y seguridad)
+generar_vhost "$HOST_MOODLE" "$PUERTO_MOODLE" "$PATH_MOODLE" "moodle.unahconecta.conf" "None"
 
 ok "Archivos de configuración generados."
 
-# --- Paso 4: Despliegue hacia Apache ---
+# --- Paso 6: Despliegue hacia Apache ---
 paso "07" "Desplegando Virtual Hosts en Apache"
 
 desplegar_y_habilitar() {
@@ -100,7 +127,7 @@ desplegar_y_habilitar() {
     local src_file="${BASE_DIR}/config/vhosts/${conf_filename}"
     local dest_file="/etc/apache2/sites-available/${conf_filename}"
 
-    # Respaldo si el archivo ya existe en sites-available
+    # Respaldar si ya existe en sites-available
     if [ -f "$dest_file" ]; then
         local timestamp
         timestamp=$(date +%Y%m%d%H%M%S)
@@ -110,7 +137,7 @@ desplegar_y_habilitar() {
 
     cp "$src_file" "$dest_file" || error "Error al copiar ${conf_filename} a sites-available."
 
-    # Habilitar el sitio
+    # Habilitar el sitio (a2ensite es idempotente, pero informamos si ya estaba activo)
     if [ -L "/etc/apache2/sites-enabled/${conf_filename}" ]; then
         advertencia "El sitio ${conf_filename} ya estaba habilitado en Apache."
     else
@@ -123,7 +150,7 @@ desplegar_y_habilitar "unahconecta.conf"
 desplegar_y_habilitar "moodle.unahconecta.conf"
 ok "Despliegue y activación de Virtual Hosts completado."
 
-# --- Paso 5: Desactivación del sitio por defecto ---
+# --- Paso 7: Desactivación del sitio por defecto ---
 paso "07" "Desactivando sitio por defecto de Apache"
 
 if [ -L "/etc/apache2/sites-enabled/000-default.conf" ]; then
@@ -133,16 +160,16 @@ else
     info "El sitio por defecto ya se encontraba deshabilitado."
 fi
 
-# --- Paso 6: Validación de sintaxis ---
+# --- Paso 8: Validación de sintaxis ---
 paso "07" "Validando la sintaxis global de Apache"
 
 if apache2ctl configtest >/dev/null 2>&1; then
     ok "Sintaxis de configuración de Apache válida."
 else
-    error "Fallo en la prueba de sintaxis de Apache (configtest). Se detiene el proceso para evitar una caída del servidor web."
+    error "Fallo en apache2ctl configtest. Se detiene el proceso para no dañar el servidor web."
 fi
 
-# --- Paso 7: Recarga y verificación del resultado real ---
+# --- Paso 9: Recarga y verificación del resultado real ---
 paso "07" "Recargando Apache y verificando accesibilidad local"
 
 systemctl reload apache2 >/dev/null 2>&1 || error "Error al recargar la configuración de Apache2."
@@ -154,19 +181,20 @@ else
 fi
 
 verificar_http() {
-    local dominio="$1"
+    local host="$1"
+    local puerto="$2"
+    local label="$3"
     local http_status
-    http_status=$(curl -I -s -o /dev/null -w "%{http_code}" -H "Host: ${dominio}" http://127.0.0.1/ || echo "000")
-    
-    # 200 OK o 30x Redirect son respuestas válidas de una plataforma activa
+    http_status=$(curl -s -o /dev/null -w "%{http_code}" "http://${host}:${puerto}/" 2>/dev/null || echo "000")
+
     if [[ "$http_status" == "200" || "$http_status" == 30* ]]; then
-        ok "El Virtual Host para ${dominio} responde correctamente (HTTP ${http_status})."
+        ok "${label} responde correctamente (HTTP ${http_status}) → http://${host}:${puerto}"
     else
-        advertencia "La petición HTTP a ${dominio} devolvió código ${http_status}. El VHost está creado, pero la plataforma podría requerir revisión."
+        advertencia "${label} devolvió HTTP ${http_status} → http://${host}:${puerto} (esperable si la plataforma aún no está inicializada)."
     fi
 }
 
-verificar_http "${DOMAIN_WP}"
-verificar_http "${DOMAIN_MOODLE}"
+verificar_http "$HOST_WP"     "$PUERTO_WP"     "WordPress"
+verificar_http "$HOST_MOODLE" "$PUERTO_MOODLE" "Moodle"
 
 echo "Script 07-vhosts.sh finalizado con éxito."

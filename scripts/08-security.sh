@@ -74,6 +74,14 @@ else
     ufw allow 443/tcp >/dev/null 2>&1 || error "Error al permitir HTTPS (443) en UFW."
 fi
 
+# Abrir puerto extra de Moodle si usa un puerto diferente al 80
+# (aplica cuando se usa IP temporal con DOMAIN_MOODLE="IP:PUERTO")
+MOODLE_PUERTO="${DOMAIN_MOODLE##*:}"
+if [[ "$MOODLE_PUERTO" =~ ^[0-9]+$ && "$MOODLE_PUERTO" != "80" ]]; then
+    ufw allow "${MOODLE_PUERTO}/tcp" >/dev/null 2>&1 || error "Error al permitir el puerto de Moodle (${MOODLE_PUERTO}) en UFW."
+    info "Puerto adicional de Moodle (${MOODLE_PUERTO}/tcp) habilitado en UFW."
+fi
+
 # Habilitar firewall de forma forzada y sin interactividad
 ufw --force enable >/dev/null 2>&1 || error "Error al habilitar UFW."
 
