@@ -183,4 +183,28 @@ else
     advertencia "La entrada del cron no se detectó. Deberá revisarse manualmente."
 fi
 
+# --- Paso 8: Instalación de plugin theme_moove ---
+paso "06" "Instalando plugin theme_moove"
+
+if [ -d "${PATH_MOODLE}/theme/moove" ]; then
+    advertencia "El plugin theme_moove ya está instalado en ${PATH_MOODLE}/theme/moove. Omitiendo descarga."
+else
+    info "Clonando repositorio de theme_moove (rama ${MOODLE_BRANCH})..."
+    git clone --branch "${MOODLE_BRANCH}" --depth 1 https://github.com/willianmano/moodle-theme_moove "${PATH_MOODLE}/theme/moove" >/dev/null 2>&1 || error "Error al clonar el repositorio de theme_moove."
+    
+    if [ ! -d "${PATH_MOODLE}/theme/moove" ] || [ -z "$(ls -A "${PATH_MOODLE}/theme/moove")" ]; then
+        error "El directorio ${PATH_MOODLE}/theme/moove no se creó o está vacío tras la clonación."
+    fi
+    
+    info "Registrando el plugin en Moodle (upgrade.php)..."
+    sudo -u www-data php "${PATH_MOODLE}/admin/cli/upgrade.php" --non-interactive >/dev/null 2>&1 || error "Error al ejecutar upgrade.php para registrar theme_moove."
+    ok "Plugin theme_moove instalado y registrado correctamente."
+    
+    info "Ajustando permisos del plugin theme_moove..."
+    chown -R www-data:www-data "${PATH_MOODLE}/theme/moove" || error "Error al reasignar la propiedad a www-data en theme_moove."
+    find "${PATH_MOODLE}/theme/moove" -type d -exec chmod 755 {} + || error "Error al asignar permisos 755 a directorios de theme_moove."
+    find "${PATH_MOODLE}/theme/moove" -type f -exec chmod 644 {} + || error "Error al asignar permisos 644 a archivos de theme_moove."
+    ok "Permisos de theme_moove establecidos correctamente."
+fi
+
 echo "Script 06-moodle.sh finalizado con éxito."

@@ -62,6 +62,7 @@ info "Moodle     → http://${HOST_MOODLE}:${PUERTO_MOODLE}"
 
 # --- Paso 3: Habilitar puerto extra en Apache si Moodle usa puerto ≠ 80 ---
 PORTS_CONF="/etc/apache2/ports.conf"
+PUERTO_NUEVO_AGREGADO=false
 if [[ "$PUERTO_MOODLE" != "80" ]]; then
     paso "07" "Habilitando puerto ${PUERTO_MOODLE} en Apache (Moodle)"
     if grep -q "Listen ${PUERTO_MOODLE}" "$PORTS_CONF"; then
@@ -69,6 +70,9 @@ if [[ "$PUERTO_MOODLE" != "80" ]]; then
     else
         echo "Listen ${PUERTO_MOODLE}" >> "$PORTS_CONF" || error "Error al agregar Listen ${PUERTO_MOODLE} en ports.conf."
         ok "Puerto ${PUERTO_MOODLE} agregado a ports.conf."
+        # Un puerto Listen nuevo requiere un restart completo para que Apache
+        # abra el socket de escucha; un simple reload no siempre lo hace.
+        PUERTO_NUEVO_AGREGADO=true
     fi
 fi
 
@@ -169,15 +173,30 @@ else
     error "Fallo en apache2ctl configtest. Se detiene el proceso para no dañar el servidor web."
 fi
 
-# --- Paso 9: Recarga y verificación del resultado real ---
-paso "07" "Recargando Apache y verificando accesibilidad local"
-
-systemctl reload apache2 >/dev/null 2>&1 || error "Error al recargar la configuración de Apache2."
+# --- Paso 9: Recarga (o restart) y verificación del resultado real ---
+if [[ "$PUERTO_NUEVO_AGREGADO" == "true" ]]; then
+    paso "07" "Reiniciando Apache (puerto nuevo requiere restart, no solo reload)"
+    systemctl restart apache2 >/dev/null 2>&1 || error "Error al reiniciar Apache2."
+else
+    paso "07" "Recargando Apache y verificando accesibilidad local"
+    systemctl reload apache2 >/dev/null 2>&1 || error "Error al recargar la configuración de Apache2."
+fi
 
 if systemctl is-active --quiet apache2; then
-    ok "Servicio Apache2 activo tras la recarga."
+    ok "Servicio Apache2 activo."
 else
-    error "Apache2 dejó de estar activo tras recargar la configuración."
+    error "Apache2 dejó de estar activo tras aplicar la configuración."
+fi
+
+# Verificación extra: si se agregó un puerto nuevo, confirmar que Apache
+# realmente quedó escuchando en él (evita el caso "todo OK pero el puerto
+# nunca abrió", que es silencioso y confuso de diagnosticar después)
+if [[ "$PUERTO_NUEVO_AGREGADO" == "true" ]]; then
+    if ss -tln | grep -q ":${PUERTO_MOODLE} "; then
+        ok "Apache confirmado escuchando en el puerto ${PUERTO_MOODLE}."
+    else
+        error "Apache no quedó escuchando en el puerto ${PUERTO_MOODLE} tras el restart. Revisa ports.conf manualmente."
+    fi
 fi
 
 verificar_http() {

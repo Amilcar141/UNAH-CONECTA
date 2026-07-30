@@ -1,0 +1,17 @@
+# === UNAH-CONECTA .gitignore ===
+
+# Datos generados por 13-guardar-diseno.sh / 14-aplicar-diseno.sh.
+# Solo son exports puntuales con timestamp (config de theme_moove, tema
+# activo, listado de imágenes) — no aportan nada versionado en el repo y
+# cambian en cada corrida.
+
+
+# Credenciales y variables sensibles (ya lo tenían presente en config.env)
+config.env
+
+# Logs de instalación
+/var/log/unahconecta/
+*.log
+
+# Backups generados por 09-backup.sh
+backups/

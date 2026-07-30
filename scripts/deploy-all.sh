@@ -3,7 +3,7 @@
 # deploy-all.sh
 # Proyecto: UNAH-CONECTA
 # Función: Orquestador para ejecutar la secuencia completa de despliegue.
-#          Actualmente abarca los scripts del 01 al 08.
+#          Actualmente abarca los scripts del 01 al 11.
 # Ejecución: sudo ./deploy-all.sh (o mediante menu.sh)
 ###############################################################################
 
@@ -23,7 +23,7 @@ source "./helpers.sh"
 require_root
 
 info "================================================================"
-info "Iniciando despliegue completo de UNAH-CONECTA (Módulos 01 al 08)"
+info "Iniciando despliegue completo de UNAH-CONECTA (Módulos 01 al 11)"
 info "================================================================"
 
 # Lista de scripts a ejecutar secuencialmente
@@ -36,6 +36,9 @@ SCRIPTS_A_EJECUTAR=(
     "06-moodle.sh"
     "07-vhosts.sh"
     "08-security.sh"
+    "09-backup.sh"
+    "10-webmin.sh"
+    "11-monitor.sh"
 )
 
 # Iterar sobre cada script y ejecutarlo de forma aislada para detenerse en caso de error
@@ -56,5 +59,5 @@ for script in "${SCRIPTS_A_EJECUTAR[@]}"; do
 done
 
 ok "================================================================"
-ok "Despliegue de los módulos 01 al 08 completado exitosamente."
+ok "Despliegue de los módulos 01 al 11 completado exitosamente."
 ok "================================================================"

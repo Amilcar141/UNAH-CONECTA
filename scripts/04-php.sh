@@ -141,7 +141,52 @@ else
     error "No se pudo encontrar el archivo de configuración del pool FPM: ${FPM_POOL_CONF}."
 fi
 
-# --- Paso 5: Habilitación y reinicio del servicio ---
+# --- Paso 5: Configurar max_input_vars en php.ini (FPM y CLI) ---
+paso "04" "Configurando max_input_vars en php.ini para FPM y CLI"
+
+ajustar_max_input_vars() {
+    local ini_file="$1"
+    local context="$2"
+
+    if [ -f "$ini_file" ]; then
+        # Verificar si ya está configurado exactamente en 5000 y descomentado
+        if grep -qE "^max_input_vars = 5000" "$ini_file"; then
+            advertencia "max_input_vars ya está configurado en 5000 en php.ini (${context}). Omitiendo modificación."
+        else
+            info "Ajustando max_input_vars = 5000 en php.ini (${context})..."
+            # Verificar si existe la directiva comentada o sin comentar
+            if ! grep -qE "^;?[[:space:]]*max_input_vars" "$ini_file"; then
+                # Si no existe en absoluto, se añade dinámicamente bajo la sección [PHP]
+                sed -i '/^\[PHP\]/a max_input_vars = 5000' "$ini_file"
+            else
+                # Utilizar exactamente el comando sed indicado en los requisitos
+                sed -i 's/^;[[:space:]]*max_input_vars.*/max_input_vars = 5000/; s/^max_input_vars.*/max_input_vars = 5000/' "$ini_file"
+            fi
+            ok "max_input_vars configurado en php.ini (${context})."
+        fi
+    else
+        error "No se encontró el archivo php.ini en: ${ini_file}"
+    fi
+}
+
+ajustar_max_input_vars "/etc/php/${PHP_VERSION}/fpm/php.ini" "FPM"
+ajustar_max_input_vars "/etc/php/${PHP_VERSION}/cli/php.ini" "CLI"
+
+# Verificar con grep en ambos archivos que la línea exacta max_input_vars = 5000 esté presente
+info "Verificando valores aplicados de max_input_vars..."
+if grep -qE "^max_input_vars = 5000" "/etc/php/${PHP_VERSION}/cli/php.ini"; then
+    ok "Verificación de max_input_vars para CLI en php.ini exitosa (5000)."
+else
+    error "La verificación de max_input_vars para CLI falló en el archivo php.ini."
+fi
+
+if grep -qE "^max_input_vars = 5000" "/etc/php/${PHP_VERSION}/fpm/php.ini"; then
+    ok "Verificación de max_input_vars para FPM en php.ini exitosa (5000)."
+else
+    error "La verificación de max_input_vars para FPM falló en el archivo php.ini."
+fi
+
+# --- Paso 6: Habilitación y reinicio del servicio ---
 paso "04" "Reiniciando y verificando servicio PHP-FPM"
 info "Habilitando e iniciando php${PHP_VERSION}-fpm..."
 systemctl enable "php${PHP_VERSION}-fpm" >/dev/null 2>&1 || error "Error al habilitar el servicio php${PHP_VERSION}-fpm."

@@ -1,0 +1,6 @@
+favicon-unah-conecta.ico	theme_moove	favicon
+logo.png	theme_moove	logo
+book-open-solid.png	theme_moove	marketing1icon
+laptop-code-solid.png	theme_moove	marketing2icon
+briefcase-solid.png	theme_moove	marketing3icon
+users-solid.png	theme_moove	marketing4icon

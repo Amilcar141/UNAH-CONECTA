@@ -34,9 +34,10 @@ fi
 # --- Ejecuta un script del proyecto si existe, o avisa si aún no está listo ---
 run_script() {
     local script_name="$1"
+    shift
     local script_path="${SCRIPTS_DIR}/${script_name}"
     if [[ -f "$script_path" ]]; then
-        bash "$script_path"
+        bash "$script_path" "$@"
     else
         advertencia "El script ${script_name} aún no ha sido creado en ${SCRIPTS_DIR}/"
     fi
@@ -134,6 +135,13 @@ show_menu() {
     echo "   9) Verificar acceso a los dominios"
     echo "  10) Información general del servidor"
     echo ""
+    echo "  PERSONALIZACIÓN MOODLE"
+    echo "  11) Guardar diseño (Moove)"
+    echo "  12) Aplicar diseño (Moove)"
+    echo ""
+    echo "  RECUPERACIÓN"
+    echo "  13) Restaurar backup en servidor nuevo"
+    echo ""
     echo "   0) Salir"
     echo ""
 }
@@ -153,6 +161,9 @@ while true; do
         8) logs_menu ;;
         9) check_domains ;;
         10) system_info ;;
+        11) run_script "save-desing.sh" ;;
+        12) run_script "load-desing.sh" ;;
+        13) run_script "12-restore.sh" ;;
         0) echo "Saliendo..."; exit 0 ;;
         *) advertencia "Opción inválida" ;;
     esac
