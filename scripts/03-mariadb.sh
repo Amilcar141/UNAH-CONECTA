@@ -33,6 +33,15 @@ fi
 # Configurar frontend no interactivo para evitar diálogos de apt
 export DEBIAN_FRONTEND=noninteractive
 
+# Suprimir needrestart y triggers de dpkg (man-db, etc.) durante instalaciones
+# NEEDRESTART_MODE=a  → responde auto a cualquier prompt de needrestart
+# NEEDRESTART_SUSPEND → bloquea completamente la ejecución de needrestart
+export NEEDRESTART_MODE=a
+export NEEDRESTART_SUSPEND=1
+
+# Opciones extra de apt para suprimir la salida del pseudo-terminal de dpkg
+APT_OPTS=(-y -qq -o Dpkg::Use-Pty=0 -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold")
+
 # --- Paso 1: Instalación de MariaDB ---
 paso "03" "Verificando instalación del servidor MariaDB"
 
@@ -40,8 +49,8 @@ if command -v mariadb >/dev/null 2>&1 || command -v mysql >/dev/null 2>&1; then
     advertencia "El servidor MariaDB ya se encuentra instalado. Omitiendo instalación del paquete."
 else
     info "MariaDB no está instalado. Instalando mariadb-server y mariadb-client..."
-    apt-get update -y -qq || error "Error al actualizar índices de paquetes antes de instalar MariaDB."
-    apt-get install -y -qq mariadb-server mariadb-client || error "Error durante la instalación de MariaDB."
+    apt-get update -y -qq -o Dpkg::Use-Pty=0 >/dev/null 2>&1 || error "Error al actualizar índices de paquetes antes de instalar MariaDB."
+    apt-get install "${APT_OPTS[@]}" mariadb-server mariadb-client >/dev/null 2>&1 || error "Error durante la instalación de MariaDB."
     ok "MariaDB instalado con éxito."
 fi
 

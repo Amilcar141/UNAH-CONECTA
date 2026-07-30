@@ -102,8 +102,21 @@ paso "06" "Iniciando instalación no interactiva de Moodle"
 # Cambiar propiedad del webroot temporalmente a www-data para que pueda escribir el config.php
 chown -R www-data:www-data "$PATH_MOODLE"
 
+# Log temporal para capturar la salida del instalador de Moodle
+MOODLE_INSTALL_LOG="/tmp/moodle_install_$(date +%Y%m%d%H%M%S).log"
+
 info "Ejecutando el instalador CLI oficial de Moodle..."
-sudo -u www-data php "${PATH_MOODLE}/admin/cli/install.php" \
+info "(Esto puede tardar varios minutos durante la creación de la base de datos)"
+
+# Se usa 'sudo -u www-data php -d' para sobreescribir php.ini en línea de comandos:
+# - max_input_vars=5000   → Moodle requiere > 1500; el valor por defecto (1000) causa fallos silenciosos
+# - memory_limit=256M     → Asegura suficiente memoria para el proceso de instalación
+# - max_execution_time=0  → Sin límite de tiempo para el script CLI (puede tardar varios minutos)
+if sudo -u www-data php \
+    -d max_input_vars=5000 \
+    -d memory_limit=256M \
+    -d max_execution_time=0 \
+    "${PATH_MOODLE}/admin/cli/install.php" \
     --non-interactive \
     --agree-license \
     --wwwroot="http://${DOMAIN_MOODLE}" \
@@ -117,7 +130,17 @@ sudo -u www-data php "${PATH_MOODLE}/admin/cli/install.php" \
     --shortname="UNAHCONECTA" \
     --adminuser="${MOODLE_ADMIN_USER}" \
     --adminpass="${MOODLE_ADMIN_PASS}" \
-    --adminemail="${MOODLE_ADMIN_EMAIL}" >/dev/null 2>&1 || error "El script de instalación de Moodle falló."
+    --adminemail="${MOODLE_ADMIN_EMAIL}" \
+    >"$MOODLE_INSTALL_LOG" 2>&1; then
+    ok "Instalador CLI de Moodle ejecutado sin errores."
+else
+    # Si falló, mostrar las últimas líneas del log para diagnóstico sin inundar la terminal
+    advertencia "El instalador CLI de Moodle reportó un error. Últimas líneas del log:"
+    tail -n 15 "$MOODLE_INSTALL_LOG" | while IFS= read -r line; do
+        info "  $line"
+    done
+    error "El instalador de Moodle falló. Log completo disponible en: ${MOODLE_INSTALL_LOG}"
+fi
 
 if [ ! -f "${PATH_MOODLE}/config.php" ]; then
     error "La instalación falló porque el archivo config.php no fue generado."
