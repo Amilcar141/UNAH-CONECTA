@@ -95,59 +95,72 @@ if ! echo "$UFW_STATUS" | grep -qE "(Apache Full|80/tcp.*ALLOW|443/tcp.*ALLOW)";
 fi
 ok "UFW habilitado y configurado exitosamente. Reglas de entrada verificadas."
 
-# --- Paso 3: Endurecimiento de SSH (SSHD) ---
-paso "08" "Aplicando endurecimiento básico del servicio SSH (sshd_config)"
+# --- Paso 3: Endurecimiento de SSH mediante archivo drop-in ---
+# Ubuntu 24.04 usa /etc/ssh/sshd_config.d/ para sobreescribir directivas de forma
+# limpia y sin editar el archivo principal con regex (que era la causa del fallo anterior).
+paso "08" "Aplicando endurecimiento básico del servicio SSH"
 
 SSHD_CONF="/etc/ssh/sshd_config"
+SSHD_DROP_IN="/etc/ssh/sshd_config.d/99-unah-conecta.conf"
 SSHD_BACKUP="/etc/ssh/sshd_config.bak.original"
 
+# Crear directorio drop-in si no existe (puede no existir en instalaciones mínimas)
+mkdir -p /etc/ssh/sshd_config.d
+
+# Respaldar configuración principal original (solo la primera vez)
 if [ ! -f "$SSHD_BACKUP" ]; then
     cp "$SSHD_CONF" "$SSHD_BACKUP" || error "Error al crear el respaldo original de la configuración SSH."
-    info "Se creó el respaldo original en ${SSHD_BACKUP}."
+    info "Respaldo original creado en ${SSHD_BACKUP}."
 fi
 
-# Función idempotente para editar configuraciones en sshd_config usando sed
-update_ssh_config() {
-    local key="$1"
-    local value="$2"
-    if grep -qE "^#?${key}\b" "$SSHD_CONF"; then
-        sed -i -E "s/^#?${key}\b.*/${key} ${value}/" "$SSHD_CONF"
-    else
-        echo "${key} ${value}" >> "$SSHD_CONF"
-    fi
-}
+info "Generando archivo de hardening SSH en ${SSHD_DROP_IN}..."
 
-info "Configurando directivas de seguridad en SSH..."
-# 1. Deshabilitar inicio de sesión directo a root
-update_ssh_config "PermitRootLogin" "no"
+# Escribir el archivo drop-in con las directivas de seguridad.
+# Este archivo tiene prioridad sobre /etc/ssh/sshd_config al ser leído después.
+cat > "$SSHD_DROP_IN" <<EOF
+# UNAH-CONECTA - Hardening SSH
+# Generado automáticamente por 08-security.sh
+# No editar manualmente; volver a ejecutar el script para regenerar.
 
-# 2. Configurar el tiempo de espera en el login (LoginGraceTime) a 30 segundos
-update_ssh_config "LoginGraceTime" "30"
+# Deshabilitar inicio de sesión directo como root
+PermitRootLogin no
 
-# 3. Actualizar el puerto si no es 22
+# Reducir tiempo de espera antes de desconectar un intento sin autenticar (segundos)
+LoginGraceTime 30
+
+EOF
+
+# Agregar directiva de puerto si es diferente al 22
 if [[ "$SSH_PORT" != "22" ]]; then
-    update_ssh_config "Port" "${SSH_PORT}"
-    info "Puerto SSH cambiado a ${SSH_PORT}. (UFW ya fue adaptado a este puerto)."
+    echo "Port ${SSH_PORT}" >> "$SSHD_DROP_IN"
+    info "Puerto SSH configurado a ${SSH_PORT} en el archivo drop-in."
 fi
 
-# 4. Manejo de la autenticación por contraseña
+# Controlar autenticación por contraseña según configuración
 if [[ "${SSH_DISABLE_PASSWORD_AUTH,,}" == "true" ]]; then
-    update_ssh_config "PasswordAuthentication" "no"
+    echo "PasswordAuthentication no" >> "$SSHD_DROP_IN"
+    info "PasswordAuthentication deshabilitada (solo llaves SSH)."
 else
-    # No se fuerza a yes ni se sobrescribe para respetar entornos mixtos, pero 
-    # emitimos la advertencia exigida por requerimientos:
     advertencia "SSH_DISABLE_PASSWORD_AUTH está en false. La autenticación por contraseña sigue PERMITIDA en SSH."
 fi
 
-ok "Configuración de sshd_config actualizada."
+ok "Archivo de hardening SSH generado."
 
-# --- Paso 4: Validación y reinicio del servicio SSH ---
+# --- Paso 4: Validación OBLIGATORIA antes de reiniciar SSH ---
 paso "08" "Validando configuración de SSH antes de recargar el servicio"
 
+# Capturar la salida de error de sshd -t para mostrarla si falla
+SSHD_TEST_OUTPUT=$(sshd -t 2>&1 || true)
+
 if ! sshd -t >/dev/null 2>&1; then
-    advertencia "La validación de sintaxis de sshd falló tras las modificaciones."
-    cp "$SSHD_BACKUP" "$SSHD_CONF"
-    error "Se restauró el respaldo original (sshd_config.bak.original). Abortando para prevenir que el servidor quede inaccesible por red."
+    # Mostrar el error real antes de abortar (ayuda a diagnosticar)
+    advertencia "La validación de sintaxis de sshd falló. Detalle del error:"
+    echo "$SSHD_TEST_OUTPUT" | while IFS= read -r line; do
+        info "  $line"
+    done
+    # Eliminar el drop-in defectuoso para restaurar el estado original
+    rm -f "$SSHD_DROP_IN"
+    error "Se eliminó el archivo drop-in defectuoso. La configuración original de SSH permanece intacta."
 fi
 
 ok "Sintaxis de configuración de SSH comprobada y válida."
@@ -158,22 +171,22 @@ systemctl restart ssh >/dev/null 2>&1 || error "Error crítico al intentar reini
 if systemctl is-active --quiet ssh; then
     ok "Servicio SSH reiniciado y operando con normalidad."
 else
-    error "CRÍTICO: El servicio SSH dejó de funcionar tras el reinicio. Debe revisar la consola provista por su nube (ej. AWS/Azure) para recuperar el control local."
+    error "CRÍTICO: El servicio SSH dejó de funcionar tras el reinicio. Revise la consola del proveedor cloud para recuperar acceso."
 fi
 
 # --- Paso 5: Resumen final ---
-paso "08" "Resumen de políticas de Seguridad"
+paso "08" "Resumen de políticas de Seguridad aplicadas"
 info "--------------------------------------------------------"
 info "- UFW Activo: Deniega todo tráfico entrante no explícito."
 info "- UFW Excepciones: Puerto SSH (${SSH_PORT}), HTTP (80), HTTPS (443)."
-info "- SSH (sshd_config):"
-info "  * Puerto escucha: ${SSH_PORT}"
+info "- SSH Drop-in: ${SSHD_DROP_IN}"
+info "  * Puerto escucha : ${SSH_PORT}"
 info "  * PermitRootLogin: no"
-info "  * LoginGraceTime: 30"
+info "  * LoginGraceTime : 30 segundos"
 if [[ "${SSH_DISABLE_PASSWORD_AUTH,,}" == "true" ]]; then
     info "  * PasswordAuthentication: no (Solo llaves SSH)"
 else
-    info "  * PasswordAuthentication: Mantenido activo"
+    info "  * PasswordAuthentication: Habilitada (configuración académica)"
 fi
 info "--------------------------------------------------------"
 

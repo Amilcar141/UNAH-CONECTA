@@ -25,9 +25,16 @@ require_root
 # Configurar frontend no interactivo para evitar diálogos de apt
 export DEBIAN_FRONTEND=noninteractive
 
+# Suprimir needrestart y triggers de dpkg durante instalaciones
+export NEEDRESTART_MODE=a
+export NEEDRESTART_SUSPEND=1
+
+# Opciones globales de apt para suprimir la salida del pseudo-terminal de dpkg
+APT_OPTS=(-y -qq -o Dpkg::Use-Pty=0 -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold")
+
 # --- Paso 1: Actualizar índices de paquetes ---
 paso "01" "Actualizando los índices de paquetes del repositorio"
-apt-get update -y -qq >/dev/null 2>&1 || error "Error al ejecutar apt-get update. Verifique su conexión a internet."
+apt-get update -y -qq -o Dpkg::Use-Pty=0 >/dev/null 2>&1 || error "Error al ejecutar apt-get update. Verifique su conexión a internet."
 ok "Índices de paquetes actualizados."
 
 # --- Paso 2: Verificar y aplicar actualizaciones de paquetes ---
@@ -41,7 +48,7 @@ if [ "$UPGRADABLE_COUNT" -eq 0 ]; then
     ok "El sistema operativo ya se encuentra actualizado (0 paquetes pendientes)."
 else
     info "Se encontraron $UPGRADABLE_COUNT paquetes pendientes de actualización. Aplicando actualizaciones..."
-    apt-get upgrade -y -qq >/dev/null 2>&1 || error "Error al aplicar apt-get upgrade en el sistema."
+    apt-get upgrade "${APT_OPTS[@]}" >/dev/null 2>&1 || error "Error al aplicar apt-get upgrade en el sistema."
     ok "Actualización de paquetes del sistema completada."
 fi
 
@@ -60,7 +67,7 @@ if [ ${#MISSING_PACKAGES[@]} -eq 0 ]; then
     ok "Todas las utilidades base (curl, wget, unzip, etc.) ya están instaladas."
 else
     info "Instalando utilidades faltantes: ${MISSING_PACKAGES[*]}"
-    apt-get install -y -qq "${MISSING_PACKAGES[@]}" || error "Error al instalar las utilidades base requeridas."
+    apt-get install "${APT_OPTS[@]}" "${MISSING_PACKAGES[@]}" >/dev/null 2>&1 || error "Error al instalar las utilidades base requeridas."
     ok "Utilidades base instaladas correctamente."
 fi
 
