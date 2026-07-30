@@ -96,7 +96,7 @@ fi
 ok "UFW habilitado y configurado exitosamente. Reglas de entrada verificadas."
 
 # --- Paso 3: Endurecimiento de SSH mediante archivo drop-in ---
-# Ubuntu 24.04 usa /etc/ssh/sshd_config.d/ para sobreescribir directivas de forma
+# Ubuntu 24.04 y 26.04 usan /etc/ssh/sshd_config.d/ para sobreescribir directivas de forma
 # limpia y sin editar el archivo principal con regex (que era la causa del fallo anterior).
 paso "08" "Aplicando endurecimiento básico del servicio SSH"
 

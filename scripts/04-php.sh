@@ -4,9 +4,12 @@
 # Proyecto: UNAH-CONECTA
 # Función: Instalación y configuración de PHP 8.3 y extensiones necesarias.
 # Ejecución: sudo ./04-php.sh (o mediante menu.sh)
-# NOTA DE COMPATIBILIDAD: Se ha seleccionado la versión nativa PHP 8.3 de
-# los repositorios de Ubuntu Server 24.04 LTS en lugar de utilizar Docker.
-# Esto asegura la máxima compatibilidad nativa comprobada para WordPress y
+# NOTA DE COMPATIBILIDAD: Se ha seleccionado la versión PHP 8.3. En Ubuntu
+# Server 24.04 LTS esta versión está en los repositorios nativos. Para
+# garantizar la compatibilidad con Ubuntu Server 26.04 LTS (que trae PHP 8.5
+# nativo, no soportado por Moodle 4.5), se utiliza el repositorio de terceros
+# ppa:ondrej/php de forma idempotente, en lugar de utilizar Docker.
+# Esto asegura la máxima compatibilidad comprobada para WordPress y
 # Moodle 4.5 LTS corriendo sobre Apache con proxy_fcgi por socket unix.
 ###############################################################################
 
@@ -78,8 +81,17 @@ if [ ${#PAQUETES_A_INSTALAR[@]} -eq 0 ]; then
     ok "Todos los paquetes y extensiones de PHP ${PHP_VERSION} ya están instalados."
 else
     info "Instalando paquetes faltantes: ${PAQUETES_A_INSTALAR[*]}"
-    # Solo actualizar índices si se va a instalar algún paquete
+    # Solo configurar repos y actualizar índices si se va a instalar algún paquete
     if ! $PHP_INSTALADO; then
+        info "Asegurando repositorio ppa:ondrej/php para garantizar versión 8.3..."
+        apt-get install -y -qq software-properties-common >/dev/null 2>&1 || error "Error al instalar software-properties-common."
+        
+        if ! grep -q "^deb .*ondrej/php" /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null; then
+            add-apt-repository -y ppa:ondrej/php >/dev/null 2>&1 || error "Error al agregar el repositorio ppa:ondrej/php."
+        else
+            info "El repositorio ppa:ondrej/php ya se encuentra configurado. Omitiendo."
+        fi
+        
         apt-get update -y -qq >/dev/null 2>&1 || error "Error al actualizar índices de paquetes."
     fi
     apt-get install -y -qq "${PAQUETES_A_INSTALAR[@]}" >/dev/null 2>&1 || error "Error durante la instalación de paquetes de PHP."
