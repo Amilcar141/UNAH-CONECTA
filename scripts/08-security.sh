@@ -149,6 +149,10 @@ ok "Archivo de hardening SSH generado."
 # --- Paso 4: Validación OBLIGATORIA antes de reiniciar SSH ---
 paso "08" "Validando configuración de SSH antes de recargar el servicio"
 
+# Asegurar que el directorio de separación de privilegios para SSH exista
+# (sshd -t puede fallar si no existe /run/sshd en algunas configuraciones)
+mkdir -p /run/sshd
+
 # Capturar la salida de error de sshd -t para mostrarla si falla
 SSHD_TEST_OUTPUT=$(sshd -t 2>&1 || true)
 
