@@ -7,38 +7,40 @@
 ###############################################################################
 
 # --- Colores ---
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # Sin color
+VERDE='\033[0;32m'
+ROJO='\033[0;31m'
+AMARILLO='\033[1;33m'
+AZUL='\033[0;34m'
+ND='\033[0m' # Sin color
 
-TOTAL_STEPS=11
+# Busca la cantidad de archivos en la carpeta scripts para determinar el total de pasos
+PASOS=$(find ./scripts -type f | wc -l)
 
-step() {
-    echo -e "${BLUE}[$1/${TOTAL_STEPS}]${NC} $2..."
+# --- Funciones de salida ---
+paso() {
+    echo -e "${AZUL}[$1/${PASOS}]${ND} $2..."
 }
 
 ok() {
-    echo -e "  ${GREEN}✓${NC} $1"
+    echo -e "  ${VERDE}✓${ND} $1"
 }
 
-fail() {
-    echo -e "  ${RED}✗${NC} $1"
+error() {
+    echo -e "  ${ROJO}✗${ND} $1"
     exit 1
 }
 
-warn() {
-    echo -e "  ${YELLOW}⚠${NC} $1"
+advertencia() {
+    echo -e "  ${AMARILLO}⚠${ND} $1"
 }
 
 info() {
-    echo -e "  ${BLUE}ℹ${NC} $1"
+    echo -e "  ${AZUL}ℹ${ND} $1"
 }
 
 # Verifica que el script corra como root/sudo
 require_root() {
     if [[ $EUID -ne 0 ]]; then
-        fail "Este script debe ejecutarse con sudo o como root."
+        error "Este script debe ejecutarse con sudo o como root."
     fi
 }

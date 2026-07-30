@@ -2,68 +2,68 @@
 ###############################################################################
 # 01-update.sh
 # Proyecto: UNAH-CONECTA
-# Función: Actualización del sistema operativo e instalación de paquetes básicos
-# Ejecución: sudo ./01-update.sh
-# Nota: Este script es parte de la secuencia de DESPLIEGUE INICIAL.
-#       No debe programarse para ejecutarse en cada arranque del sistema.
+# Función: Actualización del sistema operativo e instalación de utilidades base
+# Ejecución: sudo ./01-update.sh (o mediante menu.sh)
 ###############################################################################
 
 set -euo pipefail
 
-# --- Colores ---
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # Sin color
+# Resolver directorios base usando BASH_SOURCE
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="$(dirname "$SCRIPT_DIR")"
 
-TOTAL_STEPS=11
-STEP_NUM=1
+# Cargar funciones de salida compartidas y variables de configuración
+source "${BASE_DIR}/helpers.sh"
+source "${BASE_DIR}/config.env"
 
-# --- Funciones de salida ---
-step() {
-    echo -e "${BLUE}[${STEP_NUM}/${TOTAL_STEPS}]${NC} $1..."
-}
+# Verificar privilegios de root/sudo al inicio
+require_root
 
-ok() {
-    echo -e "  ${GREEN}✓${NC} $1"
-}
+# Configurar frontend no interactivo para evitar diálogos de apt
+export DEBIAN_FRONTEND=noninteractive
 
-fail() {
-    echo -e "  ${RED}✗${NC} $1"
-    exit 1
-}
+# --- Paso 1: Actualizar índices de paquetes ---
+paso "01" "Actualizando los índices de paquetes del repositorio"
+apt-get update -y -qq || error "Error al ejecutar apt-get update. Verifique su conexión a internet."
+ok "Índices de paquetes actualizados."
 
-warn() {
-    echo -e "  ${YELLOW}⚠${NC} $1"
-}
+# --- Paso 2: Verificar y aplicar actualizaciones de paquetes ---
+paso "01" "Verificando actualizaciones pendientes del sistema"
+# Obtener la lista de paquetes actualizables omitiendo la primera línea de encabezado
+UPGRADABLE_LIST=$(apt list --upgradable 2>/dev/null | tail -n +2 || true)
+# Filtrar líneas vacías para obtener el conteo preciso
+UPGRADABLE_COUNT=$(echo "$UPGRADABLE_LIST" | grep -v '^$' | wc -l || echo 0)
 
-# --- Validación: debe correr como root/sudo ---
-if [[ $EUID -ne 0 ]]; then
-    fail "Este script debe ejecutarse con sudo o como root."
+if [ "$UPGRADABLE_COUNT" -eq 0 ]; then
+    ok "El sistema operativo ya se encuentra actualizado (0 paquetes pendientes)."
+else
+    info "Se encontraron $UPGRADABLE_COUNT paquetes pendientes de actualización. Aplicando actualizaciones..."
+    apt-get upgrade -y -qq || error "Error al aplicar apt-get upgrade en el sistema."
+    ok "Actualización de paquetes del sistema completada."
 fi
 
-# --- Inicio ---
-step "Actualizando sistema"
+# --- Paso 3: Instalación idempotente de utilidades base ---
+paso "01" "Instalando utilidades base necesarias para el despliegue"
+REQUIRED_PACKAGES=(curl wget unzip software-properties-common ca-certificates gnupg lsb-release ufw)
+MISSING_PACKAGES=()
 
-apt update -y > /tmp/01-update.log 2>&1 \
-    && ok "Índices de paquetes actualizados (apt update)" \
-    || fail "Error al ejecutar apt update. Revisa /tmp/01-update.log"
+for pkg in "${REQUIRED_PACKAGES[@]}"; do
+    if ! dpkg -s "$pkg" >/dev/null 2>&1; then
+        MISSING_PACKAGES+=("$pkg")
+    fi
+done
 
-apt upgrade -y >> /tmp/01-update.log 2>&1 \
-    && ok "Paquetes del sistema actualizados (apt upgrade)" \
-    || fail "Error al ejecutar apt upgrade. Revisa /tmp/01-update.log"
+if [ ${#MISSING_PACKAGES[@]} -eq 0 ]; then
+    ok "Todas las utilidades base (curl, wget, unzip, etc.) ya están instaladas."
+else
+    info "Instalando utilidades faltantes: ${MISSING_PACKAGES[*]}"
+    apt-get install -y -qq "${MISSING_PACKAGES[@]}" || error "Error al instalar las utilidades base requeridas."
+    ok "Utilidades base instaladas correctamente."
+fi
 
-echo -e "${BLUE}[${STEP_NUM}/${TOTAL_STEPS}]${NC} Instalando utilidades básicas..."
-
-apt install -y curl wget unzip software-properties-common \
-    ca-certificates gnupg lsb-release ufw >> /tmp/01-update.log 2>&1 \
-    && ok "Utilidades básicas instaladas (curl, wget, unzip, ufw, etc.)" \
-    || fail "Error instalando utilidades básicas. Revisa /tmp/01-update.log"
-
-# --- Verificación de reinicio pendiente ---
+# --- Paso 4: Comprobación de reinicio requerido ---
 if [ -f /var/run/reboot-required ]; then
-    warn "El sistema requiere reinicio (probablemente por actualización de kernel)."
+    advertencia "El sistema operativo requiere un reinicio para completar la aplicación de actualizaciones."
 fi
 
-echo -e "${GREEN}Script 01-update.sh finalizado correctamente.${NC}"
+ok "Script 01-update.sh finalizado con éxito."
