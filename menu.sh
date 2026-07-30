@@ -28,7 +28,7 @@ if [[ -f "$CONFIG_FILE" ]]; then
     # shellcheck disable=SC1090
     source "$CONFIG_FILE"
 else
-    warn "No se encontró config.env, algunas opciones podrían no funcionar."
+    advertencia "No se encontró config.env, algunas opciones podrían no funcionar."
 fi
 
 # --- Ejecuta un script del proyecto si existe, o avisa si aún no está listo ---
@@ -38,7 +38,7 @@ run_script() {
     if [[ -f "$script_path" ]]; then
         bash "$script_path"
     else
-        warn "El script ${script_name} aún no ha sido creado en ${SCRIPTS_DIR}/"
+        advertencia "El script ${script_name} aún no ha sido creado en ${SCRIPTS_DIR}/"
     fi
 }
 
@@ -50,7 +50,7 @@ check_services() {
         if systemctl is-active --quiet "$svc" 2>/dev/null; then
             ok "$svc está activo"
         else
-            warn "$svc NO está activo o no está instalado"
+            advertencia "$svc NO está activo o no está instalado"
         fi
     done
     # PHP-FPM puede tener nombre distinto según la versión instalada
@@ -59,11 +59,11 @@ check_services() {
             if systemctl is-active --quiet "$svc"; then
                 ok "$svc está activo"
             else
-                warn "$svc NO está activo"
+                advertencia "$svc NO está activo"
             fi
         done
     else
-        warn "No se detectó ningún servicio php-fpm"
+        advertencia "No se detectó ningún servicio php-fpm"
     fi
 }
 
@@ -77,9 +77,9 @@ check_domains() {
         if [[ "$code" == "200" ]]; then
             ok "http://${url} responde correctamente (HTTP ${code})"
         elif [[ "$code" == "000" ]]; then
-            warn "http://${url} no responde (sin conexión o DNS no resuelto)"
+            advertencia "http://${url} no responde (sin conexión o DNS no resuelto)"
         else
-            warn "http://${url} respondió con HTTP ${code}"
+            advertencia "http://${url} respondió con HTTP ${code}"
         fi
     done
 }
@@ -104,19 +104,19 @@ logs_menu() {
     echo "  0) Volver"
     read -rp "  Selecciona un log: " log_opt
     case "$log_opt" in
-        1) [[ -f "${INSTALL_LOG:-/var/log/unahconecta/install.log}" ]] && tail -n 40 "${INSTALL_LOG:-/var/log/unahconecta/install.log}" || warn "No existe ese log todavía." ;;
-        2) [[ -f /var/log/apache2/error.log ]] && sudo tail -n 40 /var/log/apache2/error.log || warn "No existe ese log todavía." ;;
-        3) [[ -f /var/log/apache2/access.log ]] && sudo tail -n 40 /var/log/apache2/access.log || warn "No existe ese log todavía." ;;
+        1) [[ -f "${INSTALL_LOG:-/var/log/unahconecta/install.log}" ]] && tail -n 40 "${INSTALL_LOG:-/var/log/unahconecta/install.log}" || advertencia "No existe ese log todavía." ;;
+        2) [[ -f /var/log/apache2/error.log ]] && sudo tail -n 40 /var/log/apache2/error.log || advertencia "No existe ese log todavía." ;;
+        3) [[ -f /var/log/apache2/access.log ]] && sudo tail -n 40 /var/log/apache2/access.log || advertencia "No existe ese log todavía." ;;
         0) return ;;
-        *) warn "Opción inválida" ;;
+        *) advertencia "Opción inválida" ;;
     esac
 }
 
 show_menu() {
     clear
-    echo -e "${BLUE}╔════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║     UNAH-CONECTA · Panel de Control    ║${NC}"
-    echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
+    echo -e "${AZUL}╔════════════════════════════════════════╗${ND}"
+    echo -e "${AZUL}║     UNAH-CONECTA · Panel de Control    ║${ND}"
+    echo -e "${AZUL}╚════════════════════════════════════════╝${ND}"
     echo ""
     echo "  INSTALACIÓN"
     echo "   1) Instalación completa (01 → 11 en orden)"
@@ -154,7 +154,7 @@ while true; do
         9) check_domains ;;
         10) system_info ;;
         0) echo "Saliendo..."; exit 0 ;;
-        *) warn "Opción inválida" ;;
+        *) advertencia "Opción inválida" ;;
     esac
     echo ""
     read -rp "Presiona Enter para continuar..." _
