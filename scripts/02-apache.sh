@@ -32,8 +32,8 @@ if command -v apache2 >/dev/null 2>&1; then
     advertencia "Apache2 ya se encuentra instalado en el sistema. Omitiendo instalación."
 else
     info "Apache2 no está instalado. Iniciando instalación de apache2..."
-    apt-get update -y -qq || error "Error al actualizar índices de paquetes antes de instalar Apache2."
-    apt-get install -y -qq apache2 || error "Error durante la instalación del paquete apache2."
+    apt-get update -y -qq >/dev/null 2>&1 || error "Error al actualizar índices de paquetes antes de instalar Apache2."
+    apt-get install -y -qq apache2 >/dev/null 2>&1 || error "Error durante la instalación del paquete apache2."
     ok "Apache2 instalado con éxito."
 fi
 

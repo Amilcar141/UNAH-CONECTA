@@ -80,9 +80,9 @@ else
     info "Instalando paquetes faltantes: ${PAQUETES_A_INSTALAR[*]}"
     # Solo actualizar índices si se va a instalar algún paquete
     if ! $PHP_INSTALADO; then
-        apt-get update -y -qq || error "Error al actualizar índices de paquetes."
+        apt-get update -y -qq >/dev/null 2>&1 || error "Error al actualizar índices de paquetes."
     fi
-    apt-get install -y -qq "${PAQUETES_A_INSTALAR[@]}" || error "Error durante la instalación de paquetes de PHP."
+    apt-get install -y -qq "${PAQUETES_A_INSTALAR[@]}" >/dev/null 2>&1 || error "Error durante la instalación de paquetes de PHP."
     ok "Paquetes y extensiones instalados correctamente."
 fi
 

@@ -12,9 +12,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="$(dirname "$SCRIPT_DIR")"
 
+# Cambiar de directorio a BASE_DIR para que helpers.sh resuelva correctamente el conteo de PASOS
+cd "$BASE_DIR"
+
 # Cargar funciones de salida compartidas y variables de configuración
-source "${BASE_DIR}/helpers.sh"
-source "${BASE_DIR}/config.env"
+source "./helpers.sh"
+source "./config.env"
 
 # Verificar privilegios de root/sudo al inicio
 require_root
@@ -24,7 +27,7 @@ export DEBIAN_FRONTEND=noninteractive
 
 # --- Paso 1: Actualizar índices de paquetes ---
 paso "01" "Actualizando los índices de paquetes del repositorio"
-apt-get update -y -qq || error "Error al ejecutar apt-get update. Verifique su conexión a internet."
+apt-get update -y -qq >/dev/null 2>&1 || error "Error al ejecutar apt-get update. Verifique su conexión a internet."
 ok "Índices de paquetes actualizados."
 
 # --- Paso 2: Verificar y aplicar actualizaciones de paquetes ---
@@ -38,7 +41,7 @@ if [ "$UPGRADABLE_COUNT" -eq 0 ]; then
     ok "El sistema operativo ya se encuentra actualizado (0 paquetes pendientes)."
 else
     info "Se encontraron $UPGRADABLE_COUNT paquetes pendientes de actualización. Aplicando actualizaciones..."
-    apt-get upgrade -y -qq || error "Error al aplicar apt-get upgrade en el sistema."
+    apt-get upgrade -y -qq >/dev/null 2>&1 || error "Error al aplicar apt-get upgrade en el sistema."
     ok "Actualización de paquetes del sistema completada."
 fi
 
