@@ -206,7 +206,14 @@ while true; do
         10) system_info ;;
         11) run_script "save-desing.sh" ;;
         12) run_script "load-desing.sh" ;;
-        13) run_script "12-restore.sh" ;;
+        13)
+            read -rp "  Introduce el TIMESTAMP del backup a restaurar (ej. 20260730_143210): " timestamp
+            if [[ -n "$timestamp" ]]; then
+                run_script "12-restore.sh" "$timestamp"
+            else
+                advertencia "TIMESTAMP no proporcionado. Operación cancelada."
+            fi
+            ;;
         0) echo "Saliendo..."; exit 0 ;;
         *) advertencia "Opción inválida" ;;
     esac

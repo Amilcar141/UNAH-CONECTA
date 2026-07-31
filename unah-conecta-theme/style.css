@@ -1,0 +1,199 @@
+/*
+Theme Name: UNAH Conecta Enterprise
+Author: Ssamir Nuñez & Allan
+Version: 3.0
+*/
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+
+:root {
+    --unah-blue: #003366;
+    --unah-blue-dark: #002244;
+    --unah-gold: #d4a300;
+    --unah-yellow: #FFCC00;
+    --text-dark: #1f2937;
+    --text-light: #6b7280;
+    --bg-gray: #f9fafb;
+}
+
+body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-gray);
+    color: var(--text-dark);
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+/* Navbar Minimalista */
+.unah-navbar {
+    background-color: #ffffff;
+    padding: 15px 5%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 3px solid var(--unah-blue);
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+}
+.unah-navbar .brand {
+    color: var(--unah-blue);
+    font-weight: 700;
+    font-size: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.unah-navbar .brand span {
+    color: var(--unah-gold);
+}
+.btn-login {
+    background-color: var(--unah-blue);
+    color: #ffffff;
+    text-decoration: none;
+    padding: 10px 24px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+}
+.btn-login:hover {
+    background-color: var(--unah-gold);
+    color: var(--unah-blue);
+}
+
+/* Hero Section Refinada */
+.unah-hero {
+    background: linear-gradient(135deg, var(--unah-blue-dark) 0%, var(--unah-blue) 100%);
+    color: white;
+    text-align: center;
+    padding: 100px 5% 120px 5%;
+    position: relative;
+}
+.unah-hero::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 5px;
+    background: var(--unah-yellow);
+}
+.unah-hero h1 {
+    font-size: 3rem;
+    font-weight: 700;
+    margin: 0 0 20px 0;
+    letter-spacing: -1px;
+}
+.unah-hero h1 span {
+    color: var(--unah-yellow);
+}
+.unah-hero p {
+    font-size: 1.15rem;
+    font-weight: 300;
+    max-width: 700px;
+    margin: 0 auto;
+    color: #e5e7eb;
+    line-height: 1.6;
+}
+
+/* Sección de Módulos (Grid) */
+.modules-section {
+    padding: 0 5% 80px 5%;
+    max-width: 1200px;
+    margin: -60px auto 0 auto;
+    position: relative;
+    z-index: 10;
+}
+.unah-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 30px;
+}
+
+/* Tarjetas Profesionales */
+.unah-card {
+    background: #ffffff;
+    padding: 40px 30px;
+    border-radius: 12px;
+    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05), 0 4px 6px -2px rgba(0,0,0,0.025);
+    border: 1px solid #f3f4f6;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+.unah-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: var(--unah-gold);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.4s ease;
+}
+.unah-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
+}
+.unah-card:hover::before {
+    transform: scaleX(1);
+}
+
+/* Iconos de las tarjetas */
+.icon-wrapper {
+    width: 55px;
+    height: 95px;
+    background: rgba(0, 51, 102, 0.05);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    color: var(--unah-blue);
+    margin-bottom: 25px;
+    transition: all 0.3s ease;
+}
+.unah-card:hover .icon-wrapper {
+    background: var(--unah-blue);
+    color: #ffffff;
+}
+.unah-card h3 {
+    color: var(--text-dark);
+    font-weight: 600;
+    font-size: 1.25rem;
+    margin: 0 0 15px 0;
+}
+.unah-card p {
+    color: var(--text-light);
+    line-height: 1.6;
+    font-size: 0.95rem;
+    margin: 0;
+}
+
+/* Footer Académico */
+.unah-footer {
+    background: #ffffff;
+    text-align: center;
+    padding: 30px 5%;
+    border-top: 1px solid #e5e7eb;
+    color: var(--text-light);
+    margin-top: auto;
+    font-size: 0.9rem;
+}
+
+/* Estilos para el Logo Oficial */
+.unah-logo {
+    height: 95px; /* Tamaño ideal para la barra de navegación */
+    width: auto;
+    object-fit: contain;
+    display: block;
+}
+
+/* Corrección: Logo grande sin afectar la barra */
+.unah-logo {
+    height: 55px !important; 
+    transform: scale(2.0) !important; /* Lo hace visualmente un 70% más grande */
+    transform-origin: left center !important; /* Crece hacia la derecha para no salirse */
+}

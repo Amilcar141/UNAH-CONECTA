@@ -40,6 +40,13 @@ if [[ -z "${WP_TITLE:-}" || -z "${WP_ADMIN_USER:-}" || -z "${WP_ADMIN_PASS:-}" |
     error "Faltan variables de configuración de WordPress (WP_TITLE, WP_ADMIN_USER, WP_ADMIN_PASS o WP_ADMIN_EMAIL) en config.env."
 fi
 
+# VARIABLES NUEVAS A AGREGAR A config.env:
+#   WP_THEME_DIR  Ruta relativa desde BASE_DIR a la carpeta del tema institucional
+#                 Ejemplo: WP_THEME_DIR="wp-theme/unah-conecta-theme"
+if [[ -z "${WP_THEME_DIR:-}" ]]; then
+    error "Falta la variable WP_THEME_DIR en config.env (ruta relativa al tema institucional, ej: wp-theme/unah-conecta-theme)."
+fi
+
 # --- Paso 1: Instalación idempotente de WP-CLI ---
 paso "05" "Verificando el estado de instalación de WP-CLI"
 
@@ -161,6 +168,39 @@ if [[ "$HTTP_STATUS" == "200" || "$HTTP_STATUS" == "302" ]]; then
     ok "Prueba de red local simulando Host ${DOMAIN_WP} exitosa (HTTP ${HTTP_STATUS})."
 else
     advertencia "La petición HTTP local retornó código ${HTTP_STATUS}. Esto es normal si el Virtual Host correspondiente aún no está habilitado."
+fi
+
+# --- Paso 9: Instalación del tema institucional ---
+paso "05" "Instalando el tema institucional unah-conecta-theme"
+
+TEMA_SRC="${BASE_DIR}/${WP_THEME_DIR}"
+TEMA_DEST="${PATH_WP}/wp-content/themes/unah-conecta-theme"
+
+# Validar que la carpeta del tema exista en el repositorio
+if [[ ! -d "$TEMA_SRC" ]]; then
+    error "No se encontró la carpeta del tema en ${TEMA_SRC}. Verifique que el repositorio esté actualizado y que WP_THEME_DIR sea correcto."
+fi
+
+# Copiar el tema al directorio de temas de WordPress (sobreescribe si ya existe)
+info "Copiando tema desde ${TEMA_SRC} hacia ${TEMA_DEST}..."
+cp -r "$TEMA_SRC" "$TEMA_DEST" || error "Error al copiar el tema a ${TEMA_DEST}."
+
+# Ajustar propietario igual que el resto de la instalación
+chown -R www-data:www-data "$TEMA_DEST" || error "Error al asignar propietario www-data al tema."
+find "$TEMA_DEST" -type d -exec chmod 755 {} + || error "Error al asignar permisos 755 a directorios del tema."
+find "$TEMA_DEST" -type f -exec chmod 644 {} + || error "Error al asignar permisos 644 a archivos del tema."
+ok "Tema copiado y permisos aplicados correctamente."
+
+# --- Paso 10: Activación del tema institucional ---
+paso "05" "Activando el tema unah-conecta-theme en WordPress"
+
+wp theme activate unah-conecta-theme --path="${PATH_WP}" --allow-root >/dev/null 2>&1 || error "Error al activar el tema unah-conecta-theme con WP-CLI."
+
+# Verificar que el tema quedó activo
+if wp theme is-active unah-conecta-theme --path="${PATH_WP}" --allow-root >/dev/null 2>&1; then
+    ok "Tema unah-conecta-theme activado y confirmado como tema activo."
+else
+    error "El tema fue instalado pero no quedó como activo tras wp theme activate."
 fi
 
 echo "Script 05-wordpress.sh finalizado con éxito."

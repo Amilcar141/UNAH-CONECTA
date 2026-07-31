@@ -15,8 +15,9 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 ND='\033[0m' # Sin color
 
-# Busca la cantidad de archivos en la carpeta scripts para determinar el total de pasos
-PASOS=$(find ./scripts -type f | wc -l)
+# Cuenta solo los scripts de la secuencia principal (00-11): excluye auxiliares
+# como 12-restore.sh, save-desing.sh, load-desing.sh, deploy-all.sh, etc.
+PASOS=$(find ./scripts -maxdepth 1 -type f -name '*.sh' | grep -cE '/([0-9]|10|11)-[^/]+\.sh$')
 
 # --- Variables de Logging ---
 _LOG_INITIALIZED=0
@@ -61,8 +62,18 @@ _write_log() {
 
 # --- Funciones de salida ---
 paso() {
-    echo -e "${CYAN}➜ [${1}/${PASOS}]${ND} ${BOLD}$2...${ND}"
-    _write_log "PASO" "[$1/$PASOS] $2..."
+    # Detectar si el script actual pertenece a la secuencia principal (prefijo 00-11)
+    local _script_base
+    _script_base=$(basename "$0" .sh)
+    if [[ "$_script_base" =~ ^(0[0-9]|1[01])- ]]; then
+        # Script de la secuencia principal: mostrar contador [n/PASOS]
+        echo -e "${CYAN}➜ [${1}/${PASOS}]${ND} ${BOLD}$2...${ND}"
+        _write_log "PASO" "[$1/$PASOS] $2..."
+    else
+        # Script auxiliar: mostrar solo el ícono y el mensaje, sin contador
+        echo -e "${CYAN}➜${ND} ${BOLD}$2...${ND}"
+        _write_log "PASO" "$2..."
+    fi
 }
 
 ok() {
