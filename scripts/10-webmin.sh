@@ -39,33 +39,39 @@ fi
 if [ "$WEBMIN_YA_INSTALADO" = false ]; then
 
     # --- Paso 2: Dependencias necesarias ---
+    # NOTA: se instala vía paquete .deb directo (no por repositorio APT), ya que
+    # el repositorio oficial de Webmin firma sus paquetes con una llave DSA de
+    # 1024 bits, algoritmo que versiones recientes de APT/GPG rechazan por
+    # política de seguridad ("untrusted public key algorithm: dsa1024"). Este
+    # es un problema conocido y aún no resuelto por el proyecto Webmin.
     paso "10" "Instalando dependencias necesarias para Webmin"
     apt-get update -y >/dev/null 2>&1 || error "Fallo al actualizar los repositorios APT."
     apt-get install -y perl libnet-ssleay-perl openssl libauthen-pam-perl \
         libpam-runtime libio-pty-perl apt-show-versions python3 unzip curl \
-        gnupg2 >/dev/null 2>&1 || error "Error al instalar las dependencias de Webmin."
+        >/dev/null 2>&1 || error "Error al instalar las dependencias de Webmin."
     ok "Dependencias instaladas correctamente."
 
-    # --- Paso 3: Agregar el repositorio oficial de Webmin ---
-    paso "10" "Agregando el repositorio oficial de Webmin"
+    # --- Paso 3: Descargar el paquete .deb oficial de Webmin ---
+    paso "10" "Descargando el paquete .deb más reciente de Webmin"
 
-    curl -fsSL https://download.webmin.com/jcameron-key.asc -o /tmp/jcameron-key.asc \
-        || error "No se pudo descargar la llave GPG de Webmin."
+    curl -fsSL https://www.webmin.com/download/deb/webmin-current.deb -o /tmp/webmin-current.deb \
+        || error "No se pudo descargar el paquete .deb de Webmin."
 
-    gpg --yes --dearmor -o /usr/share/keyrings/webmin-archive-keyring.gpg /tmp/jcameron-key.asc \
-        || error "Error al procesar la llave GPG de Webmin."
-
-    echo "deb [signed-by=/usr/share/keyrings/webmin-archive-keyring.gpg] http://download.webmin.com/download/repository sarge contrib" \
-        > /etc/apt/sources.list.d/webmin.list \
-        || error "No se pudo registrar el repositorio de Webmin en APT."
-
-    apt-get update -y >/dev/null 2>&1 || error "Fallo al actualizar APT tras agregar el repositorio de Webmin."
-    ok "Repositorio de Webmin agregado correctamente."
+    if [ ! -s /tmp/webmin-current.deb ]; then
+        error "El paquete .deb descargado de Webmin está vacío o es corrupto."
+    fi
+    ok "Paquete de Webmin descargado correctamente."
 
     # --- Paso 4: Instalación del paquete ---
     paso "10" "Instalando el paquete Webmin"
-    apt-get install -y webmin >/dev/null 2>&1 || error "Error al instalar el paquete Webmin."
-    ok "Webmin instalado correctamente."
+
+    dpkg -i /tmp/webmin-current.deb >/dev/null 2>&1 || true
+    # dpkg puede fallar por dependencias faltantes; apt-get -f las resuelve.
+    apt-get install -f -y >/dev/null 2>&1 || error "Error al resolver dependencias del paquete Webmin."
+
+    dpkg -s webmin >/dev/null 2>&1 || error "El paquete Webmin no quedó instalado correctamente."
+    rm -f /tmp/webmin-current.deb
+    ok "Webmin instalado correctamente desde el paquete .deb oficial."
 fi
 
 # --- Paso 5: Configurar el puerto de escucha ---
