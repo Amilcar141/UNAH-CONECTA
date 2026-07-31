@@ -43,7 +43,7 @@ SCRIPTS_A_EJECUTAR=(
 
 # Iterar sobre cada script y ejecutarlo de forma aislada para detenerse en caso de error
 for script in "${SCRIPTS_A_EJECUTAR[@]}"; do
-    script_path="${SCRIPT_DIR}/12"
+    script_path="${SCRIPT_DIR}/${script}"
     
     if [ -f "$script_path" ]; then
         info ">>> Iniciando: ${script}"
