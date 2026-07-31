@@ -99,18 +99,61 @@ system_info() {
 # --- Submenú de logs ---
 logs_menu() {
     echo ""
-    echo "  1) Log de instalación (${INSTALL_LOG:-/var/log/unahconecta/install.log})"
-    echo "  2) Log de errores de Apache"
-    echo "  3) Log de acceso de Apache"
+    local log_dir="${LOG_DIR:-/var/log/unahconecta}"
+    
+    # Obtener lista de logs generados por los scripts en el directorio
+    local log_files=()
+    if [[ -d "$log_dir" ]]; then
+        while IFS= read -r file; do
+            [[ -n "$file" ]] && log_files+=("$file")
+        done < <(find "$log_dir" -maxdepth 1 -name "*.log" -type f | sort)
+    fi
+
+    if [[ ${#log_files[@]} -eq 0 ]]; then
+        advertencia "No hay logs de scripts disponibles aún en $log_dir."
+        return
+    fi
+
+    # Imprimir submenú dinámico
+    echo "  Logs disponibles:"
+    local i=1
+    for log_file in "${log_files[@]}"; do
+        echo "  $i) $(basename "$log_file")"
+        ((i++))
+    done
+    
+    # Logs adicionales estáticos que existían
+    local apache_err="/var/log/apache2/error.log"
+    local apache_acc="/var/log/apache2/access.log"
+    
+    local idx_err=$i
+    echo "  ${idx_err}) Log de errores de Apache"
+    ((i++))
+    
+    local idx_acc=$i
+    echo "  ${idx_acc}) Log de acceso de Apache"
+    
     echo "  0) Volver"
+    
     read -rp "  Selecciona un log: " log_opt
-    case "$log_opt" in
-        1) [[ -f "${INSTALL_LOG:-/var/log/unahconecta/install.log}" ]] && tail -n 40 "${INSTALL_LOG:-/var/log/unahconecta/install.log}" || advertencia "No existe ese log todavía." ;;
-        2) [[ -f /var/log/apache2/error.log ]] && sudo tail -n 40 /var/log/apache2/error.log || advertencia "No existe ese log todavía." ;;
-        3) [[ -f /var/log/apache2/access.log ]] && sudo tail -n 40 /var/log/apache2/access.log || advertencia "No existe ese log todavía." ;;
-        0) return ;;
-        *) advertencia "Opción inválida" ;;
-    esac
+    
+    # Manejar opciones
+    if [[ "$log_opt" == "0" ]]; then
+        return
+    elif [[ "$log_opt" =~ ^[0-9]+$ ]] && (( log_opt >= 1 && log_opt <= ${#log_files[@]} )); then
+        local selected_log="${log_files[$((log_opt-1))]}"
+        if command -v less >/dev/null 2>&1; then
+            less "$selected_log"
+        else
+            cat "$selected_log"
+        fi
+    elif [[ "$log_opt" == "$idx_err" ]]; then
+        [[ -f "$apache_err" ]] && sudo tail -n 40 "$apache_err" || advertencia "No existe ese log todavía."
+    elif [[ "$log_opt" == "$idx_acc" ]]; then
+        [[ -f "$apache_acc" ]] && sudo tail -n 40 "$apache_acc" || advertencia "No existe ese log todavía."
+    else
+        advertencia "Opción inválida"
+    fi
 }
 
 show_menu() {
