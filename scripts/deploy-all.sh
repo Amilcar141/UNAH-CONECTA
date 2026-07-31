@@ -23,7 +23,7 @@ source "./helpers.sh"
 require_root
 
 info "================================================================"
-info "Iniciando despliegue completo de UNAH-CONECTA (Módulos 01 al 11)"
+info "        Iniciando despliegue completo de UNAH-CONECTA"
 info "================================================================"
 
 # Lista de scripts a ejecutar secuencialmente
@@ -43,7 +43,7 @@ SCRIPTS_A_EJECUTAR=(
 
 # Iterar sobre cada script y ejecutarlo de forma aislada para detenerse en caso de error
 for script in "${SCRIPTS_A_EJECUTAR[@]}"; do
-    script_path="${SCRIPT_DIR}/${script}"
+    script_path="${SCRIPT_DIR}/12"
     
     if [ -f "$script_path" ]; then
         info ">>> Iniciando: ${script}"
@@ -59,5 +59,5 @@ for script in "${SCRIPTS_A_EJECUTAR[@]}"; do
 done
 
 ok "================================================================"
-ok "Despliegue de los módulos 01 al 11 completado exitosamente."
+ok "            Despliegue completado exitosamente"
 ok "================================================================"
