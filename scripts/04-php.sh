@@ -83,13 +83,34 @@ else
     info "Instalando paquetes faltantes: ${PAQUETES_A_INSTALAR[*]}"
     # Solo configurar repos y actualizar índices si se va a instalar algún paquete
     if ! $PHP_INSTALADO; then
-        info "Asegurando repositorio ppa:ondrej/php para garantizar versión 8.3..."
-        apt-get install -y -qq software-properties-common >/dev/null 2>&1 || error "Error al instalar software-properties-common."
-        
-        if ! grep -q "^deb .*ondrej/php" /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null; then
-            add-apt-repository -y ppa:ondrej/php >/dev/null 2>&1 || error "Error al agregar el repositorio ppa:ondrej/php."
+        CODENAME=$(lsb_release -sc)
+
+        if [[ "$CODENAME" == "resolute" ]]; then
+            # Ubuntu 26.04+: ppa:ondrej/php no publica paquetes para esta
+            # versión: usar el repositorio packages.sury.org en su lugar.
+            info "Detectado Ubuntu ${CODENAME}, configurando packages.sury.org..."
+            
+            if ! grep -q "packages.sury.org" /etc/apt/sources.list.d/php.list 2>/dev/null; then
+                apt-get install -y -qq ca-certificates curl lsb-release >/dev/null 2>&1 || error "Error al instalar dependencias base (curl, ca-certificates)."
+                curl -fsSLo /tmp/debsuryorg-archive-keyring.deb https://packages.sury.org/debsuryorg-archive-keyring.deb || error "Error al descargar la llave del repositorio sury.org."
+                dpkg -i /tmp/debsuryorg-archive-keyring.deb >/dev/null 2>&1 || error "Error al instalar la llave del repositorio sury.org."
+                echo "deb [signed-by=/usr/share/keyrings/debsuryorg-archive-keyring.gpg] https://packages.sury.org/php/ ${CODENAME} main" \
+                    | tee /etc/apt/sources.list.d/php.list > /dev/null || error "Error al agregar el repositorio packages.sury.org."
+                ok "Repositorio packages.sury.org configurado."
+            else
+                info "El repositorio packages.sury.org ya se encuentra configurado. Omitiendo."
+            fi
         else
-            info "El repositorio ppa:ondrej/php ya se encuentra configurado. Omitiendo."
+            # Ubuntu 22.04/24.04: la PPA clásica sigue funcionando normalmente.
+            info "Detectado Ubuntu ${CODENAME}, asegurando repositorio ppa:ondrej/php..."
+            apt-get install -y -qq software-properties-common >/dev/null 2>&1 || error "Error al instalar software-properties-common."
+            
+            if ! grep -q "^deb .*ondrej/php" /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null; then
+                add-apt-repository -y ppa:ondrej/php >/dev/null 2>&1 || error "Error al agregar el repositorio ppa:ondrej/php."
+                ok "Repositorio ppa:ondrej/php agregado."
+            else
+                info "El repositorio ppa:ondrej/php ya se encuentra configurado. Omitiendo."
+            fi
         fi
         
         apt-get update -y -qq >/dev/null 2>&1 || error "Error al actualizar índices de paquetes."
