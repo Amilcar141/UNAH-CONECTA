@@ -172,6 +172,12 @@ show_menu() {
     echo "   5) Ejecutar backup manual"
     echo "   6) Ver/editar config.env"
     echo ""
+    echo "  CONFIGURACIÓN ADICIONAL"
+    echo "  14) Configurar Virtual Hosts (07-vhosts)"
+    echo "  15) Configurar SSL/TLS con Let's Encrypt (07b-ssl)"
+    echo "  16) Configurar Webmin y Reverse Proxy (10-webmin)"
+    echo "  17) Forzar sincronización manual de IP administrativa (DDNS)"
+    echo ""
     echo "  DIAGNÓSTICO"
     echo "   7) Ver estado de servicios"
     echo "   8) Ver logs"
@@ -213,6 +219,13 @@ while true; do
             else
                 advertencia "TIMESTAMP no proporcionado. Operación cancelada."
             fi
+            ;;
+        14) run_script "07-vhosts.sh" ;;
+        15) run_script "07b-ssl.sh" ;;
+        16) run_script "10-webmin.sh" ;;
+        17)
+            info "Forzando sincronización de IP administrativa..."
+            run_script "sync-admin-ip.sh"
             ;;
         0) echo "Saliendo..."; exit 0 ;;
         *) advertencia "Opción inválida" ;;

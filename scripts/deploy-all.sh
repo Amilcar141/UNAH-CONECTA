@@ -38,6 +38,7 @@ SCRIPTS_A_EJECUTAR=(
     "08-security.sh"
     "09-backup.sh"
     "10-webmin.sh"
+    "07b-ssl.sh"
     "11-monitor.sh"
 )
 

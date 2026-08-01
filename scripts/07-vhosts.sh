@@ -39,6 +39,10 @@ if [[ -z "${PHP_VERSION:-}" || -z "${SERVER_ADMIN_EMAIL:-}" ]]; then
     error "Faltan variables requeridas en config.env (PHP_VERSION o SERVER_ADMIN_EMAIL)."
 fi
 
+if [[ -z "${DOMAIN_WP:-}" || -z "${PATH_WP:-}" || -z "${DOMAIN_MOODLE:-}" || -z "${PATH_MOODLE:-}" ]]; then
+    error "Faltan variables requeridas de dominios o rutas en config.env (DOMAIN_WP, PATH_WP, DOMAIN_MOODLE, PATH_MOODLE)."
+fi
+
 SOCKET_PATH="/run/php/php${PHP_VERSION}-fpm.sock"
 if [ ! -S "$SOCKET_PATH" ]; then
     error "El socket de PHP-FPM (${SOCKET_PATH}) no existe. Verifique que 04-php.sh se ejecutó."
@@ -77,26 +81,33 @@ if [[ "$PUERTO_MOODLE" != "80" ]]; then
 fi
 
 # --- Paso 4: Función generadora de Virtual Hosts ---
-# Parámetros: 1:host 2:puerto 3:path 4:conf_filename 5:allow_override
+# Parámetros: 1:host 2:puerto 3:path 4:conf_filename 5:allow_override 6:alias(opcional)
 generar_vhost() {
     local host="$1"
     local puerto="$2"
     local path="$3"
     local conf_filename="$4"
     local allow_override_type="$5"
+    local alias="${6:-}"
     local log_prefix="${conf_filename%.conf}"
     local dest_file="${BASE_DIR}/config/vhosts/${conf_filename}"
 
     mkdir -p "${BASE_DIR}/config/vhosts"
+    
+    local alias_directive=""
+    if [[ -n "$alias" ]]; then
+        alias_directive="ServerAlias ${alias}"
+    fi
 
     cat > "$dest_file" <<EOF
 <VirtualHost *:${puerto}>
     ServerName ${host}
+    ${alias_directive}
     ServerAdmin ${SERVER_ADMIN_EMAIL}
     DocumentRoot ${path}
 
     <Directory ${path}>
-        Options FollowSymLinks
+        Options -Indexes +FollowSymLinks
         AllowOverride ${allow_override_type}
         Require all granted
     </Directory>
@@ -116,39 +127,17 @@ EOF
 paso "07" "Generando configuraciones de Virtual Hosts (WordPress y Moodle)"
 
 # WordPress: AllowOverride All para que funcionen los permalinks con .htaccess
-generar_vhost "$HOST_WP" "$PUERTO_WP" "$PATH_WP" "unahconecta.conf" "All"
+generar_vhost "$HOST_WP" "$PUERTO_WP" "$PATH_WP" "unahconecta.conf" "All" "${DOMAIN_WP_ALIAS:-}"
 
 # Moodle: AllowOverride None (no usa .htaccess; mejora rendimiento y seguridad)
-generar_vhost "$HOST_MOODLE" "$PUERTO_MOODLE" "$PATH_MOODLE" "moodle.unahconecta.conf" "None"
+generar_vhost "$HOST_MOODLE" "$PUERTO_MOODLE" "$PATH_MOODLE" "moodle.unahconecta.conf" "None" ""
 
 ok "Archivos de configuración generados."
 
 # --- Paso 6: Despliegue hacia Apache ---
 paso "07" "Desplegando Virtual Hosts en Apache"
 
-desplegar_y_habilitar() {
-    local conf_filename="$1"
-    local src_file="${BASE_DIR}/config/vhosts/${conf_filename}"
-    local dest_file="/etc/apache2/sites-available/${conf_filename}"
-
-    # Respaldar si ya existe en sites-available
-    if [ -f "$dest_file" ]; then
-        local timestamp
-        timestamp=$(date +%Y%m%d%H%M%S)
-        cp "$dest_file" "${dest_file}.bak.${timestamp}" || error "Error al respaldar ${dest_file}."
-        info "Respaldo creado: ${dest_file}.bak.${timestamp}"
-    fi
-
-    cp "$src_file" "$dest_file" || error "Error al copiar ${conf_filename} a sites-available."
-
-    # Habilitar el sitio (a2ensite es idempotente, pero informamos si ya estaba activo)
-    if [ -L "/etc/apache2/sites-enabled/${conf_filename}" ]; then
-        advertencia "El sitio ${conf_filename} ya estaba habilitado en Apache."
-    else
-        a2ensite "${conf_filename}" >/dev/null 2>&1 || error "Error al habilitar el sitio ${conf_filename}."
-        info "Sitio ${conf_filename} habilitado."
-    fi
-}
+# (La función desplegar_y_habilitar ahora se encuentra en helpers.sh)
 
 desplegar_y_habilitar "unahconecta.conf"
 desplegar_y_habilitar "moodle.unahconecta.conf"
@@ -204,7 +193,7 @@ verificar_http() {
     local puerto="$2"
     local label="$3"
     local http_status
-    http_status=$(curl -s -o /dev/null -w "%{http_code}" "http://${host}:${puerto}/" 2>/dev/null || echo "000")
+    http_status=$(curl --max-time 5 --connect-timeout 3 -s -o /dev/null -w "%{http_code}" "http://${host}:${puerto}/" 2>/dev/null || echo "000")
 
     if [[ "$http_status" == "200" || "$http_status" == 30* ]]; then
         ok "${label} responde correctamente (HTTP ${http_status}) → http://${host}:${puerto}"

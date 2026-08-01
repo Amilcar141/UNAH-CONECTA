@@ -1,0 +1,21 @@
+[Unit]
+Description=UNAH-CONECTA: Sincronización de IP administrativa dinámica (Webmin)
+Documentation=https://github.com/Amilcar141/UNAH-CONECTA
+# Se ejecuta después de que la red esté disponible (para poder resolver el DDNS)
+# y después de que Apache2 y Webmin estén activos (para poder recargarlos).
+After=network-online.target apache2.service webmin.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# El script lee config.env internamente; no se requieren variables de entorno adicionales aquí.
+ExecStart=/usr/local/bin/sync-admin-ip.sh
+# Si el script falla (e.g., DDNS no resuelve), no reiniciar; el timer lo volverá a intentar.
+Restart=no
+# Capturar salida al journal de systemd para diagnóstico con: journalctl -u sync-admin-ip.service
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=sync-admin-ip
+
+[Install]
+WantedBy=multi-user.target

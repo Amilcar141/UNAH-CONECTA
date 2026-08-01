@@ -104,3 +104,30 @@ require_root() {
         error "Este script debe ejecutarse con sudo o como root."
     fi
 }
+
+# --- Despliegue de Virtual Hosts ---
+# Parámetros: 1:conf_filename
+# Asume que BASE_DIR está definido en el script que la invoca.
+desplegar_y_habilitar() {
+    local conf_filename="$1"
+    local src_file="${BASE_DIR}/config/vhosts/${conf_filename}"
+    local dest_file="/etc/apache2/sites-available/${conf_filename}"
+
+    # Respaldar si ya existe en sites-available
+    if [ -f "$dest_file" ]; then
+        local timestamp
+        timestamp=$(date +%Y%m%d%H%M%S)
+        cp "$dest_file" "${dest_file}.bak.${timestamp}" || error "Error al respaldar ${dest_file}."
+        info "Respaldo creado: ${dest_file}.bak.${timestamp}"
+    fi
+
+    cp "$src_file" "$dest_file" || error "Error al copiar ${conf_filename} a sites-available."
+
+    # Habilitar el sitio (a2ensite es idempotente, pero informamos si ya estaba activo)
+    if [ -L "/etc/apache2/sites-enabled/${conf_filename}" ]; then
+        advertencia "El sitio ${conf_filename} ya estaba habilitado en Apache."
+    else
+        a2ensite "${conf_filename}" >/dev/null 2>&1 || error "Error al habilitar el sitio ${conf_filename}."
+        info "Sitio ${conf_filename} habilitado."
+    fi
+}

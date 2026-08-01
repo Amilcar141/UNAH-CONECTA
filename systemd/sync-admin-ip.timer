@@ -1,0 +1,21 @@
+[Unit]
+Description=UNAH-CONECTA: Timer de sincronización de IP administrativa (Webmin DDNS)
+Documentation=https://github.com/Amilcar141/UNAH-CONECTA
+
+[Timer]
+# OnBootSec: primera ejecución 30 segundos después del arranque del sistema,
+# dando tiempo suficiente para que Apache y Webmin estén completamente activos.
+OnBootSec=30sec
+
+# OnUnitActiveSec: intervalo de resincronización entre ejecuciones.
+# El valor en minutos se toma de ADMIN_IP_SYNC_INTERVAL_MIN en config.env (default: 5).
+# NOTA: este valor está embebido aquí como literal. Si cambias ADMIN_IP_SYNC_INTERVAL_MIN
+# en config.env, vuelve a ejecutar 10-webmin.sh para regenerar este timer.
+OnUnitActiveSec=5min
+
+# Persistent=true garantiza que si el sistema estaba apagado cuando debía dispararse
+# el timer, se ejecute inmediatamente al arrancar (resincronización al volver online).
+Persistent=true
+
+[Install]
+WantedBy=timers.target
