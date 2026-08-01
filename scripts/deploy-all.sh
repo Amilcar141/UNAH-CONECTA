@@ -26,21 +26,10 @@ info "================================================================"
 info "        Iniciando despliegue completo de UNAH-CONECTA"
 info "================================================================"
 
-# Lista de scripts a ejecutar secuencialmente
-SCRIPTS_A_EJECUTAR=(
-    "01-update.sh"
-    "02-apache.sh"
-    "03-mariadb.sh"
-    "04-php.sh"
-    "05-wordpress.sh"
-    "06-moodle.sh"
-    "07-vhosts.sh"
-    "08-security.sh"
-    "09-backup.sh"
-    "10-webmin.sh"
-    "07b-ssl.sh"
-    "11-monitor.sh"
-)
+# La lista de scripts y su orden vienen de MAIN_SEQUENCE_SCRIPTS, definida en
+# helpers.sh como fuente única de verdad. No duplicar la lista aquí: si necesitas
+# agregar, eliminar o reordenar un script, hazlo solo en helpers.sh.
+SCRIPTS_A_EJECUTAR=("${MAIN_SEQUENCE_SCRIPTS[@]}")
 
 # Iterar sobre cada script y ejecutarlo de forma aislada para detenerse en caso de error
 for script in "${SCRIPTS_A_EJECUTAR[@]}"; do

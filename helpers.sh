@@ -15,9 +15,50 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 ND='\033[0m' # Sin color
 
-# Cuenta solo los scripts de la secuencia principal (00-11): excluye auxiliares
-# como 12-restore.sh, save-desing.sh, load-desing.sh, deploy-all.sh, etc.
-PASOS=$(find ./scripts -maxdepth 1 -type f -name '*.sh' | grep -cE '/([0-9]|10|11)-[^/]+\.sh$')
+# --- Iconos: UTF-8 o ASCII según soporte de la terminal ---
+# Forzar modo ASCII con: export UNAH_ASCII_ICONS=1
+# Auto-detección: si LANG o LC_ALL contienen "UTF-8" se usan glifos Unicode.
+_usar_utf8=false
+if [[ "${UNAH_ASCII_ICONS:-0}" != "1" ]]; then
+    _locale_actual="${LC_ALL:-${LANG:-}}"
+    if [[ "$_locale_actual" == *"UTF-8"* || "$_locale_actual" == *"utf8"* ]]; then
+        _usar_utf8=true
+    fi
+fi
+
+if $_usar_utf8; then
+    _ICONO_PASO="\u279C"  # ➜
+    _ICONO_OK="\u2713"   # ✓
+    _ICONO_WARN="\u26A0" # ⚠
+    _ICONO_ERR="\u2717"  # ✗
+    _ICONO_INFO="\u2139" # ℹ
+else
+    _ICONO_PASO="->"
+    _ICONO_OK="[OK]"
+    _ICONO_WARN="[!]"
+    _ICONO_ERR="[X]"
+    _ICONO_INFO="[i]"
+fi
+
+# --- Secuencia principal de despliegue (fuente única de verdad) ---
+# Estos son exactamente los 12 scripts numerados en el orden de deploy-all.sh.
+# PASOS se usa en paso() para mostrar el contador [n/12].
+# Tanto deploy-all.sh como paso() deben derivar su lista de este array.
+MAIN_SEQUENCE_SCRIPTS=(
+    "01-update.sh"
+    "02-apache.sh"
+    "03-mariadb.sh"
+    "04-php.sh"
+    "05-wordpress.sh"
+    "06-moodle.sh"
+    "07-vhosts.sh"
+    "08-security.sh"
+    "09-backup.sh"
+    "10-webmin.sh"
+    "07b-ssl.sh"
+    "11-monitor.sh"
+)
+PASOS=${#MAIN_SEQUENCE_SCRIPTS[@]}
 
 # --- Variables de Logging ---
 _LOG_INITIALIZED=0
@@ -61,40 +102,52 @@ _write_log() {
 }
 
 # --- Funciones de salida ---
+# NOTA: todos los echo redirigen a stderr (>&2) para que las sustituciones de
+# comando $(...) nunca capturen mensajes de diagnóstico como parte del valor
+# retornado por una función. Solo el stdout explícito de una función (echo sin >&2)
+# debe ser capturado por el llamador.
 paso() {
-    # Detectar si el script actual pertenece a la secuencia principal (prefijo 00-11)
-    local _script_base
-    _script_base=$(basename "$0" .sh)
-    if [[ "$_script_base" =~ ^(0[0-9]|1[01])- ]]; then
-        # Script de la secuencia principal: mostrar contador [n/PASOS]
-        echo -e "${CYAN}➜ [${1}/${PASOS}]${ND} ${BOLD}$2...${ND}"
+    # Determinar si el script actual pertenece a la secuencia principal comprobando
+    # membresía en MAIN_SEQUENCE_SCRIPTS (en vez de regex), para que 07b-ssl.sh
+    # y cualquier nombre con letra en el prefijo también muestren el contador.
+    local _script_basename
+    _script_basename=$(basename "$0")
+    local _es_principal=false
+    for _s in "${MAIN_SEQUENCE_SCRIPTS[@]}"; do
+        if [[ "$_s" == "$_script_basename" ]]; then
+            _es_principal=true
+            break
+        fi
+    done
+
+    if $_es_principal; then
+        echo -e "${CYAN}${_ICONO_PASO} [${1}/${PASOS}]${ND} ${BOLD}$2...${ND}" >&2
         _write_log "PASO" "[$1/$PASOS] $2..."
     else
-        # Script auxiliar: mostrar solo el ícono y el mensaje, sin contador
-        echo -e "${CYAN}➜${ND} ${BOLD}$2...${ND}"
+        echo -e "${CYAN}${_ICONO_PASO}${ND} ${BOLD}$2...${ND}" >&2
         _write_log "PASO" "$2..."
     fi
 }
 
 ok() {
-    echo -e "    ${VERDE}✓${ND} $1"
+    echo -e "    ${VERDE}${_ICONO_OK}${ND} $1" >&2
     _write_log "OK" "$1"
 }
 
 error() {
-    echo -e ""
-    echo -e "    ${ROJO}✗${ND} ${BOLD}$1${ND}"
+    echo -e "" >&2
+    echo -e "    ${ROJO}${_ICONO_ERR}${ND} ${BOLD}$1${ND}" >&2
     _write_log "ERROR" "$1"
     exit 1
 }
 
 advertencia() {
-    echo -e "    ${AMARILLO}⚠${ND} ${BOLD}$1${ND}"
+    echo -e "    ${AMARILLO}${_ICONO_WARN}${ND} ${BOLD}$1${ND}" >&2
     _write_log "ADVERTENCIA" "$1"
 }
 
 info() {
-    echo -e "    ${AZUL}ℹ${ND} $1"
+    echo -e "    ${AZUL}${_ICONO_INFO}${ND} $1" >&2
     _write_log "INFO" "$1"
 }
 

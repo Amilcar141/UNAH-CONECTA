@@ -32,8 +32,12 @@ require_root
 # Configurar frontend no interactivo para evitar diálogos de apt
 export DEBIAN_FRONTEND=noninteractive
 
-# Definir la versión de PHP compartida por ambas aplicaciones
-PHP_VERSION="8.3"
+# PHP_VERSION se lee desde config.env (ya cargado arriba con source ./config.env).
+# No se define aquí para evitar duplicación. Si config.env no la tiene, se aborta.
+if [[ -z "${PHP_VERSION:-}" ]]; then
+    error "PHP_VERSION no está definida en config.env. Agrega: PHP_VERSION=\"8.3\""
+fi
+
 
 # --- Paso 1: Verificación de PHP Base ---
 paso "04" "Verificando el estado actual de la instalación de PHP"

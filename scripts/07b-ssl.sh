@@ -101,4 +101,49 @@ else
     advertencia "La prueba de renovación falló, es posible que haya problemas en el futuro."
 fi
 
+paso "07b" "Verificando bloques VirtualHost *:443 por dominio en sites-enabled"
+
+# Extraer solo los hostnames de los argumentos -d del array DOMINIOS_VALIDADOS
+# (que tiene la forma: -d dom1 -d dom2 ...)
+DOMINIOS_SSL=()
+for _arg in "${DOMINIOS_VALIDADOS[@]}"; do
+    [[ "$_arg" != "-d" ]] && DOMINIOS_SSL+=("$_arg")
+done
+
+SITES_ENABLED_DIR="/etc/apache2/sites-enabled"
+VHOST_443_ERRORS=0
+
+for dominio in "${DOMINIOS_SSL[@]}"; do
+    # Busca en cada archivo de sites-enabled si existe un bloque <VirtualHost *:443>
+    # que contenga "ServerName <dominio>" dentro de ese mismo bloque (no en cualquier parte).
+    # Estrategia: extraer 10 líneas tras cada VirtualHost *:443 y verificar si
+    # alguna de ellas contiene el ServerName exacto del dominio.
+    _encontrado=false
+    for _conf_file in "${SITES_ENABLED_DIR}"/*.conf "${SITES_ENABLED_DIR}"/*; do
+        [[ -f "$_conf_file" ]] || continue
+        # Buscar bloques <VirtualHost *:443> y las líneas siguientes en ese archivo
+        while IFS= read -r _bloque; do
+            if echo "$_bloque" | grep -q "ServerName[[:space:]]\+${dominio}$"; then
+                _encontrado=true
+                break 2
+            fi
+        done < <(grep -A 10 "VirtualHost \*:443" "$_conf_file" 2>/dev/null)
+    done
+
+    if $_encontrado; then
+        ok "Bloque VirtualHost *:443 con ServerName ${dominio} confirmado en sites-enabled."
+    else
+        advertencia "ATENCIÓN: No se encontró un bloque <VirtualHost *:443> con ServerName ${dominio} en ${SITES_ENABLED_DIR}/."
+        advertencia "  El certificado puede haberse emitido pero el vhost HTTPS no está activo para ese dominio."
+        advertencia "  Diagnóstico: sudo apache2ctl -S | grep ${dominio}"
+        VHOST_443_ERRORS=$((VHOST_443_ERRORS + 1))
+    fi
+done
+
+if [[ $VHOST_443_ERRORS -gt 0 ]]; then
+    advertencia "${VHOST_443_ERRORS} dominio(s) sin bloque VirtualHost *:443 activo. Revisa manualmente con: apache2ctl -S"
+else
+    ok "Todos los dominios SSL tienen su VirtualHost *:443 correctamente configurado."
+fi
+
 echo "Script 07b-ssl.sh finalizado con éxito."

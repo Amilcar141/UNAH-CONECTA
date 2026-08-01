@@ -193,6 +193,9 @@ if [[ -n "${DOMAIN_WEBMIN:-}" ]]; then
 
     # Proxy a Webmin interno — se usa 127.0.0.1 explícito (no localhost) para
     # evitar problemas con resolución de nombre en sistemas con IPv6 dual-stack.
+    # ProxyPreserveHost On: envía el header Host original al backend (ej.
+    # webmin.unahconecta.com), evitando que Webmin muestre 127.0.0.1 en el login.
+    ProxyPreserveHost On
     ProxyPass / http://127.0.0.1:${WEBMIN_PORT}/
     ProxyPassReverse / http://127.0.0.1:${WEBMIN_PORT}/
 

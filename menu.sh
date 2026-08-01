@@ -54,17 +54,32 @@ check_services() {
             advertencia "$svc NO está activo o no está instalado"
         fi
     done
-    # PHP-FPM puede tener nombre distinto según la versión instalada
-    if systemctl list-units --type=service 2>/dev/null | grep -q "php.*fpm"; then
-        for svc in $(systemctl list-units --type=service 2>/dev/null | grep -oP 'php\S*fpm\S*\.service' | sort -u); do
-            if systemctl is-active --quiet "$svc"; then
-                ok "$svc está activo"
-            else
-                advertencia "$svc NO está activo"
-            fi
-        done
+
+    # PHP-FPM: verificar directamente con PHP_VERSION (cargada desde config.env).
+    # Fallback: buscar cualquier servicio php*-fpm activo si PHP_VERSION no está definida.
+    local _fpm_svc
+    if [[ -n "${PHP_VERSION:-}" ]]; then
+        _fpm_svc="php${PHP_VERSION}-fpm"
+        if systemctl is-active --quiet "$_fpm_svc" 2>/dev/null; then
+            ok "${_fpm_svc} está activo"
+        else
+            advertencia "${_fpm_svc} NO está activo o no está instalado"
+        fi
     else
-        advertencia "No se detectó ningún servicio php-fpm"
+        # Fallback: buscar cualquier servicio php[version]-fpm mediante lista
+        local _fpm_found=false
+        while IFS= read -r _unit; do
+            _fpm_found=true
+            if systemctl is-active --quiet "$_unit" 2>/dev/null; then
+                ok "${_unit} está activo"
+            else
+                advertencia "${_unit} NO está activo"
+            fi
+        done < <(systemctl list-units --all --type=service --no-legend --plain 2>/dev/null \
+            | awk '{print $1}' | grep -E '^php[0-9.]+-fpm\.service$' | sort -u)
+        if ! $_fpm_found; then
+            advertencia "No se detectó ningún servicio php-fpm (PHP_VERSION no definida en config.env)"
+        fi
     fi
 }
 
@@ -74,13 +89,30 @@ check_domains() {
     info "Verificando acceso a los dominios:"
     local domains=("${DOMAIN_WP:-www.unahconecta.com}" "${DOMAIN_MOODLE:-moodle.unahconecta.com}")
     for url in "${domains[@]}"; do
-        code=$(curl -s -o /dev/null -m 5 -w "%{http_code}" "http://${url}" 2>/dev/null || echo "000")
-        if [[ "$code" == "200" ]]; then
-            ok "http://${url} responde correctamente (HTTP ${code})"
-        elif [[ "$code" == "000" ]]; then
-            advertencia "http://${url} no responde (sin conexión o DNS no resuelto)"
+        # Reiniciar variables locales en cada iteración para evitar arrastre entre dominios
+        local code="000"
+        local esquema=""
+
+        # Intentar HTTPS primero (--connect-timeout 3 para no bloquear si el puerto está cerrado)
+        code=$(curl -s -o /dev/null --connect-timeout 3 -m 5 -w "%{http_code}" \
+            "https://${url}" 2>/dev/null || echo "000")
+
+        if [[ "$code" != "000" ]]; then
+            esquema="https"
         else
-            advertencia "http://${url} respondió con HTTP ${code}"
+            # Fallback a HTTP si HTTPS no responde
+            code=$(curl -s -o /dev/null --connect-timeout 3 -m 5 -w "%{http_code}" \
+                "http://${url}" 2>/dev/null || echo "000")
+            esquema="http"
+        fi
+
+        if [[ "$code" == "000" ]]; then
+            advertencia "${esquema}://${url} no responde (sin conexión o DNS no resuelto)"
+        elif [[ "$code" =~ ^(200|301|302|303|307|308)$ ]]; then
+            # 200 OK y 30x son respuestas válidas (redirect puede ser http->https)
+            ok "${esquema}://${url} responde correctamente (HTTP ${code})"
+        else
+            advertencia "${esquema}://${url} respondió con HTTP ${code}"
         fi
     done
 }
