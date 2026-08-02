@@ -32,8 +32,12 @@ paso "07b" "Verificando dependencias de Certbot"
 
 if ! command -v certbot >/dev/null 2>&1; then
     info "Instalando certbot y python3-certbot-apache..."
-    apt-get update -y >/dev/null 2>&1 || error "Error actualizando APT"
-    apt-get install -y certbot python3-certbot-apache >/dev/null 2>&1 || error "Error instalando certbot"
+    if ! apt-get update -y > /tmp/apt_update_ssl.log 2>&1; then
+        error "Error actualizando APT. Detalle:\n$(cat /tmp/apt_update_ssl.log)"
+    fi
+    if ! apt-get install -y certbot python3-certbot-apache > /tmp/apt_install_certbot.log 2>&1; then
+        error "Error instalando certbot. Detalle:\n$(cat /tmp/apt_install_certbot.log)"
+    fi
     ok "Certbot instalado correctamente."
 else
     ok "Certbot ya está instalado."
@@ -94,6 +98,82 @@ else
     error "Ocurrió un problema al solicitar el certificado con Certbot."
 fi
 
+# Extraer solo los hostnames de los argumentos -d del array DOMINIOS_VALIDADOS
+# (que tiene la forma: -d dom1 -d dom2 ...)
+DOMINIOS_SSL=()
+for _arg in "${DOMINIOS_VALIDADOS[@]}"; do
+    [[ "$_arg" != "-d" ]] && DOMINIOS_SSL+=("$_arg")
+done
+
+# --- CORRECCIÓN DE MIXED CONTENT ---
+# Explicación: Moodle y WordPress se instalan usando HTTP antes de emitir los
+# certificados SSL. Al forzar HTTPS en Apache, ambas plataformas intentan cargar
+# assets (CSS/JS) internos vía HTTP dentro de una conexión HTTPS, provocando bloqueo
+# de "mixed content" en los navegadores y rompiendo el diseño visual. Aquí 
+# actualizamos sus URLs base directamente en la configuración a HTTPS para evitarlo.
+
+if [[ -n "${DOMAIN_MOODLE:-}" && -n "${PATH_MOODLE:-}" ]]; then
+    _host_moodle="$(extraer_host "$DOMAIN_MOODLE")"
+    _encontrado_moodle=false
+    for _dom in "${DOMINIOS_SSL[@]}"; do
+        if [[ "$_dom" == "$_host_moodle" ]]; then
+            _encontrado_moodle=true
+            break
+        fi
+    done
+
+    if $_encontrado_moodle; then
+        paso "07b" "Actualizando URL base de Moodle a HTTPS (Mixed Content Fix)"
+        if [[ -f "${PATH_MOODLE}/config.php" ]]; then
+            sed -i "s|^\([[:space:]]*\$CFG->wwwroot[[:space:]]*=[[:space:]]*'\)http://${_host_moodle}|\1https://${_host_moodle}|" "${PATH_MOODLE}/config.php"
+            sudo -u www-data php "${PATH_MOODLE}/admin/cli/purge_caches.php" >/dev/null 2>&1 || advertencia "No se pudo limpiar la caché de Moodle automáticamente."
+            
+            if grep -q "^[[:space:]]*\$CFG->wwwroot[[:space:]]*=[[:space:]]*'http://${_host_moodle}" "${PATH_MOODLE}/config.php"; then
+                advertencia "No se pudo actualizar completamente config.php de Moodle a HTTPS."
+            else
+                ok "URL base de Moodle actualizada a HTTPS."
+            fi
+        else
+            advertencia "No se encontró ${PATH_MOODLE}/config.php para actualizar la URL."
+        fi
+    fi
+fi
+
+if [[ -n "${DOMAIN_WP:-}" && -n "${PATH_WP:-}" ]]; then
+    _host_wp="$(extraer_host "$DOMAIN_WP")"
+    _encontrado_wp=false
+    for _dom in "${DOMINIOS_SSL[@]}"; do
+        if [[ "$_dom" == "$_host_wp" ]]; then
+            _encontrado_wp=true
+            break
+        fi
+    done
+
+    if $_encontrado_wp; then
+        paso "07b" "Actualizando URL base de WordPress a HTTPS (Mixed Content Fix)"
+        if ! command -v wp >/dev/null 2>&1; then
+            info "WP-CLI no encontrado. Descargando wp-cli.phar portable..."
+            wget -q -O /tmp/wp-cli.phar https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar || advertencia "Fallo al descargar WP-CLI."
+            mv /tmp/wp-cli.phar /usr/local/bin/wp || advertencia "No se pudo mover WP-CLI a /usr/local/bin/wp."
+            chmod +x /usr/local/bin/wp
+        fi
+        
+        if command -v wp >/dev/null 2>&1; then
+            sudo -u www-data wp option update siteurl "https://${_host_wp}" --path="${PATH_WP}" >/dev/null 2>&1 || true
+            sudo -u www-data wp option update home "https://${_host_wp}" --path="${PATH_WP}" >/dev/null 2>&1 || true
+            
+            _siteurl_actual=$(sudo -u www-data wp option get siteurl --path="${PATH_WP}" 2>/dev/null || echo "")
+            if [[ "$_siteurl_actual" == https://* ]]; then
+                ok "URL base de WordPress actualizada a HTTPS."
+            else
+                advertencia "No se pudo verificar la actualización de la URL en WordPress."
+            fi
+        else
+            advertencia "WP-CLI no está disponible para actualizar la URL."
+        fi
+    fi
+fi
+
 paso "07b" "Validando renovación automática"
 if certbot renew --dry-run >/dev/null 2>&1; then
     ok "Prueba de renovación (dry-run) completada con éxito."
@@ -102,13 +182,6 @@ else
 fi
 
 paso "07b" "Verificando bloques VirtualHost *:443 por dominio en sites-enabled"
-
-# Extraer solo los hostnames de los argumentos -d del array DOMINIOS_VALIDADOS
-# (que tiene la forma: -d dom1 -d dom2 ...)
-DOMINIOS_SSL=()
-for _arg in "${DOMINIOS_VALIDADOS[@]}"; do
-    [[ "$_arg" != "-d" ]] && DOMINIOS_SSL+=("$_arg")
-done
 
 SITES_ENABLED_DIR="/etc/apache2/sites-enabled"
 VHOST_443_ERRORS=0

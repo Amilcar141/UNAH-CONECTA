@@ -114,8 +114,9 @@ if [[ -n "$DOMAIN_WEBMIN" ]]; then
             || { advertencia "Fallo al actualizar Require ip en ${VHOST_FILE}."; ERRORES=$((ERRORES+1)); }
 
         # Validar sintaxis antes de recargar — aborta con mensaje claro si es inválida
-        if ! apache2ctl configtest >/dev/null 2>&1; then
-            echo "ERROR: La sintaxis de Apache quedó inválida tras la actualización de ${VHOST_FILE}." >&2
+        if ! apache2ctl configtest > /tmp/apache_configtest_sync.log 2>&1; then
+            echo "ERROR: La sintaxis de Apache quedó inválida tras la actualización de ${VHOST_FILE}. Detalle:" >&2
+            cat /tmp/apache_configtest_sync.log >&2
             echo "Se reversa el cambio para no dejar el sistema en estado roto." >&2
             # Revertir: restaurar la IP anterior (o "Require all granted" si no había)
             if [[ -n "$IP_ANTERIOR" ]]; then

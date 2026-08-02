@@ -32,8 +32,12 @@ if command -v apache2 >/dev/null 2>&1; then
     advertencia "Apache2 ya se encuentra instalado en el sistema. Omitiendo instalación."
 else
     info "Apache2 no está instalado. Iniciando instalación de apache2..."
-    apt-get update -y -qq >/dev/null 2>&1 || error "Error al actualizar índices de paquetes antes de instalar Apache2."
-    apt-get install -y -qq apache2 >/dev/null 2>&1 || error "Error durante la instalación del paquete apache2."
+    if ! apt-get update -y -qq > /tmp/apt_update_apache.log 2>&1; then
+        error "Error al actualizar índices de paquetes antes de instalar Apache2. Detalle:\n$(cat /tmp/apt_update_apache.log)"
+    fi
+    if ! apt-get install -y -qq apache2 > /tmp/apt_install_apache.log 2>&1; then
+        error "Error durante la instalación del paquete apache2. Detalle:\n$(cat /tmp/apt_install_apache.log)"
+    fi
     ok "Apache2 instalado con éxito."
 fi
 
@@ -61,10 +65,10 @@ fi
 
 # --- Paso 4: Validar sintaxis y reiniciar servicio ---
 paso "02" "Verificando sintaxis de configuración de Apache"
-if apache2ctl configtest >/dev/null 2>&1; then
+if apache2ctl configtest > /tmp/apache_configtest.log 2>&1; then
     ok "Sintaxis de configuración de Apache2 válida."
 else
-    error "La prueba de sintaxis de Apache2 (configtest) ha fallado. Abortando reinicio."
+    error "La prueba de sintaxis de Apache2 (configtest) ha fallado. Abortando reinicio. Detalle:\n$(cat /tmp/apache_configtest.log)"
 fi
 
 info "Habilitando y reiniciando el servicio de Apache2..."

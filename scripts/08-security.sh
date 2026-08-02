@@ -45,8 +45,12 @@ if command -v ufw >/dev/null 2>&1; then
     ok "UFW ya se encuentra instalado."
 else
     info "UFW no detectado. Instalando ufw..."
-    apt-get update -y -qq >/dev/null 2>&1 || error "Error al actualizar índices de paquetes."
-    apt-get install -y -qq ufw >/dev/null 2>&1 || error "Error al instalar UFW."
+    if ! apt-get update -y -qq > /tmp/apt_update_ufw.log 2>&1; then
+        error "Error al actualizar índices de paquetes. Detalle:\n$(cat /tmp/apt_update_ufw.log)"
+    fi
+    if ! apt-get install -y -qq ufw > /tmp/apt_install_ufw.log 2>&1; then
+        error "Error al instalar UFW. Detalle:\n$(cat /tmp/apt_install_ufw.log)"
+    fi
     ok "UFW instalado correctamente."
 fi
 

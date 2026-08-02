@@ -94,10 +94,14 @@ if [ "$WEBMIN_YA_INSTALADO" = false ]; then
     # política de seguridad ("untrusted public key algorithm: dsa1024"). Este
     # es un problema conocido y aún no resuelto por el proyecto Webmin.
     paso "10" "Instalando dependencias necesarias para Webmin"
-    apt-get update -y >/dev/null 2>&1 || error "Fallo al actualizar los repositorios APT."
-    apt-get install -y perl libnet-ssleay-perl openssl libauthen-pam-perl \
+    if ! apt-get update -y > /tmp/apt_update_webmin.log 2>&1; then
+        error "Fallo al actualizar los repositorios APT. Detalle:\n$(cat /tmp/apt_update_webmin.log)"
+    fi
+    if ! apt-get install -y perl libnet-ssleay-perl openssl libauthen-pam-perl \
         libpam-runtime libio-pty-perl apt-show-versions python3 unzip curl \
-        >/dev/null 2>&1 || error "Error al instalar las dependencias de Webmin."
+        > /tmp/apt_install_webmin_deps.log 2>&1; then
+        error "Error al instalar las dependencias de Webmin. Detalle:\n$(cat /tmp/apt_install_webmin_deps.log)"
+    fi
     ok "Dependencias instaladas correctamente."
 
     # --- Paso 3: Descargar el paquete .deb oficial de Webmin ---
@@ -116,7 +120,9 @@ if [ "$WEBMIN_YA_INSTALADO" = false ]; then
 
     dpkg -i /tmp/webmin-current.deb >/dev/null 2>&1 || true
     # dpkg puede fallar por dependencias faltantes; apt-get -f las resuelve.
-    apt-get install -f -y >/dev/null 2>&1 || error "Error al resolver dependencias del paquete Webmin."
+    if ! apt-get install -f -y > /tmp/apt_install_webmin_f.log 2>&1; then
+        error "Error al resolver dependencias del paquete Webmin. Detalle:\n$(cat /tmp/apt_install_webmin_f.log)"
+    fi
 
     dpkg -s webmin >/dev/null 2>&1 || error "El paquete Webmin no quedó instalado correctamente."
     rm -f /tmp/webmin-current.deb

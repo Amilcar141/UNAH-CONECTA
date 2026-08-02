@@ -49,8 +49,12 @@ if command -v mariadb >/dev/null 2>&1 || command -v mysql >/dev/null 2>&1; then
     advertencia "El servidor MariaDB ya se encuentra instalado. Omitiendo instalación del paquete."
 else
     info "MariaDB no está instalado. Instalando mariadb-server y mariadb-client..."
-    apt-get update -y -qq -o Dpkg::Use-Pty=0 >/dev/null 2>&1 || error "Error al actualizar índices de paquetes antes de instalar MariaDB."
-    apt-get install "${APT_OPTS[@]}" mariadb-server mariadb-client >/dev/null 2>&1 || error "Error durante la instalación de MariaDB."
+    if ! apt-get update -y -qq -o Dpkg::Use-Pty=0 > /tmp/apt_update_mariadb.log 2>&1; then
+        error "Error al actualizar índices de paquetes antes de instalar MariaDB. Detalle:\n$(cat /tmp/apt_update_mariadb.log)"
+    fi
+    if ! apt-get install "${APT_OPTS[@]}" mariadb-server mariadb-client > /tmp/apt_install_mariadb.log 2>&1; then
+        error "Error durante la instalación de MariaDB. Detalle:\n$(cat /tmp/apt_install_mariadb.log)"
+    fi
     ok "MariaDB instalado con éxito."
 fi
 

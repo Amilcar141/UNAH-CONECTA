@@ -34,7 +34,9 @@ APT_OPTS=(-y -qq -o Dpkg::Use-Pty=0 -o Dpkg::Options::="--force-confdef" -o Dpkg
 
 # --- Paso 1: Actualizar índices de paquetes ---
 paso "01" "Actualizando los índices de paquetes del repositorio"
-apt-get update -y -qq -o Dpkg::Use-Pty=0 >/dev/null 2>&1 || error "Error al ejecutar apt-get update. Verifique su conexión a internet."
+if ! apt-get update -y -qq -o Dpkg::Use-Pty=0 > /tmp/apt_update.log 2>&1; then
+    error "Error al ejecutar apt-get update. Verifique su conexión a internet. Detalle:\n$(cat /tmp/apt_update.log)"
+fi
 ok "Índices de paquetes actualizados."
 
 # --- Paso 2: Verificar y aplicar actualizaciones de paquetes ---
@@ -48,7 +50,9 @@ if [ "$UPGRADABLE_COUNT" -eq 0 ]; then
     ok "El sistema operativo ya se encuentra actualizado (0 paquetes pendientes)."
 else
     info "Se encontraron $UPGRADABLE_COUNT paquetes pendientes de actualización. Aplicando actualizaciones..."
-    apt-get upgrade "${APT_OPTS[@]}" >/dev/null 2>&1 || error "Error al aplicar apt-get upgrade en el sistema."
+    if ! apt-get upgrade "${APT_OPTS[@]}" > /tmp/apt_upgrade.log 2>&1; then
+        error "Error al aplicar apt-get upgrade en el sistema. Detalle:\n$(cat /tmp/apt_upgrade.log)"
+    fi
     ok "Actualización de paquetes del sistema completada."
 fi
 
@@ -67,7 +71,9 @@ if [ ${#MISSING_PACKAGES[@]} -eq 0 ]; then
     ok "Todas las utilidades base (curl, wget, unzip, etc.) ya están instaladas."
 else
     info "Instalando utilidades faltantes: ${MISSING_PACKAGES[*]}"
-    apt-get install "${APT_OPTS[@]}" "${MISSING_PACKAGES[@]}" >/dev/null 2>&1 || error "Error al instalar las utilidades base requeridas."
+    if ! apt-get install "${APT_OPTS[@]}" "${MISSING_PACKAGES[@]}" > /tmp/apt_install.log 2>&1; then
+        error "Error al instalar las utilidades base requeridas. Detalle:\n$(cat /tmp/apt_install.log)"
+    fi
     ok "Utilidades base instaladas correctamente."
 fi
 

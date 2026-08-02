@@ -156,10 +156,10 @@ fi
 # --- Paso 8: Validación de sintaxis ---
 paso "07" "Validando la sintaxis global de Apache"
 
-if apache2ctl configtest >/dev/null 2>&1; then
+if apache2ctl configtest > /tmp/apache_configtest_vhosts.log 2>&1; then
     ok "Sintaxis de configuración de Apache válida."
 else
-    error "Fallo en apache2ctl configtest. Se detiene el proceso para no dañar el servidor web."
+    error "Fallo en apache2ctl configtest. Se detiene el proceso para no dañar el servidor web. Detalle:\n$(cat /tmp/apache_configtest_vhosts.log)"
 fi
 
 # --- Paso 9: Recarga (o restart) y verificación del resultado real ---
