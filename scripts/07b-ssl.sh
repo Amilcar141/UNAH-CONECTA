@@ -32,12 +32,33 @@ paso "07b" "Verificando dependencias de Certbot"
 
 if ! command -v certbot >/dev/null 2>&1; then
     info "Instalando certbot y python3-certbot-apache..."
-    if ! apt-get update -y > /tmp/apt_update_ssl.log 2>&1; then
-        error "Error actualizando APT. Detalle:\n$(cat /tmp/apt_update_ssl.log)"
-    fi
-    if ! apt-get install -y certbot python3-certbot-apache > /tmp/apt_install_certbot.log 2>&1; then
-        error "Error instalando certbot. Detalle:\n$(cat /tmp/apt_install_certbot.log)"
-    fi
+    _retry=0
+    while ! apt-get update -y > /tmp/apt_update_ssl.log 2>&1; do
+        if grep -qEi "Could not get lock|Unable to lock" /tmp/apt_update_ssl.log; then
+            if [ $_retry -ge 12 ]; then
+                error "Tiempo agotado esperando el bloqueo de APT. Detalle:\n$(cat /tmp/apt_update_ssl.log)"
+            fi
+            advertencia "APT está bloqueado por otro proceso. Esperando 10s... ($((_retry+1))/12)"
+            sleep 10
+            ((_retry++))
+        else
+            error "Error actualizando APT. Detalle:\n$(cat /tmp/apt_update_ssl.log)"
+        fi
+    done
+    
+    _retry=0
+    while ! apt-get install -y certbot python3-certbot-apache > /tmp/apt_install_certbot.log 2>&1; do
+        if grep -qEi "Could not get lock|Unable to lock" /tmp/apt_install_certbot.log; then
+            if [ $_retry -ge 12 ]; then
+                error "Tiempo agotado esperando el bloqueo de APT. Detalle:\n$(cat /tmp/apt_install_certbot.log)"
+            fi
+            advertencia "APT está bloqueado por otro proceso. Esperando 10s... ($((_retry+1))/12)"
+            sleep 10
+            ((_retry++))
+        else
+            error "Error instalando certbot. Detalle:\n$(cat /tmp/apt_install_certbot.log)"
+        fi
+    done
     ok "Certbot instalado correctamente."
 else
     ok "Certbot ya está instalado."
