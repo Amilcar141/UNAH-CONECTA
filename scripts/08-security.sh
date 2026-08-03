@@ -70,12 +70,12 @@ ufw default allow outgoing >/dev/null 2>&1 || error "Error al permitir tráfico 
 info "Configurando excepciones en firewall..."
 ufw allow "${SSH_PORT}/tcp" >/dev/null 2>&1 || error "Error al permitir el puerto SSH (${SSH_PORT}) en UFW."
 
-# Permitir HTTP (80) y HTTPS (443) prefiriendo el perfil de aplicación si existe
-if ufw app list 2>/dev/null | grep -q "Apache Full"; then
-    ufw allow "Apache Full" >/dev/null 2>&1 || error "Error al aplicar perfil 'Apache Full' en UFW."
+# Permitir HTTP (80). En modo IP sin SSL no se requiere el 443.
+# Se usa el perfil 'Apache' (solo 80) si existe; de lo contrario se abre 80/tcp directo.
+if ufw app list 2>/dev/null | grep -qE "^  Apache$"; then
+    ufw allow "Apache" >/dev/null 2>&1 || error "Error al aplicar perfil 'Apache' (HTTP 80) en UFW."
 else
     ufw allow 80/tcp >/dev/null 2>&1 || error "Error al permitir HTTP (80) en UFW."
-    ufw allow 443/tcp >/dev/null 2>&1 || error "Error al permitir HTTPS (443) en UFW."
 fi
 
 # Abrir puerto extra de Moodle si usa un puerto diferente al 80
@@ -94,8 +94,8 @@ UFW_STATUS=$(ufw status verbose)
 if ! echo "$UFW_STATUS" | grep -qE "${SSH_PORT}.*ALLOW"; then
     error "CRÍTICO: El puerto SSH (${SSH_PORT}) no aparece como ALLOW en UFW. Abortando."
 fi
-if ! echo "$UFW_STATUS" | grep -qE "(Apache Full|80/tcp.*ALLOW|443/tcp.*ALLOW)"; then
-    error "Los puertos para el tráfico web (80/443) no aparecen correctamente en UFW."
+if ! echo "$UFW_STATUS" | grep -qE "(Apache|80/tcp.*ALLOW)"; then
+    error "El puerto HTTP (80) no aparece correctamente habilitado en UFW."
 fi
 ok "UFW habilitado y configurado exitosamente. Reglas de entrada verificadas."
 
@@ -186,7 +186,7 @@ fi
 paso "08" "Resumen de políticas de Seguridad aplicadas"
 info "--------------------------------------------------------"
 info "- UFW Activo: Deniega todo tráfico entrante no explícito."
-info "- UFW Excepciones: Puerto SSH (${SSH_PORT}), HTTP (80), HTTPS (443)."
+info "- UFW Excepciones: Puerto SSH (${SSH_PORT}), HTTP (80), Moodle (${MOODLE_PUERTO})."
 info "- SSH Drop-in: ${SSHD_DROP_IN}"
 info "  * Puerto escucha : ${SSH_PORT}"
 info "  * PermitRootLogin: no"

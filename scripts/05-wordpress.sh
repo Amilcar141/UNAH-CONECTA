@@ -40,6 +40,11 @@ if [[ -z "${WP_TITLE:-}" || -z "${WP_ADMIN_USER:-}" || -z "${WP_ADMIN_PASS:-}" |
     error "Faltan variables de configuración de WordPress (WP_TITLE, WP_ADMIN_USER, WP_ADMIN_PASS o WP_ADMIN_EMAIL) en config.env."
 fi
 
+# Detectar placeholder sin reemplazar
+if [[ "${DOMAIN_WP:-}" == *"<IP_PUBLICA>"* ]]; then
+    error "DOMAIN_WP contiene el placeholder '<IP_PUBLICA>'. Edita config.env y reemplazalo con la IP real del servidor antes de desplegar."
+fi
+
 # VARIABLES NUEVAS A AGREGAR A config.env:
 #   WP_THEME_DIR  Ruta relativa desde BASE_DIR a la carpeta del tema institucional
 #                 Ejemplo: WP_THEME_DIR="wp-theme/unah-conecta-theme"
@@ -130,16 +135,28 @@ ok "Conexión a la base de datos validada exitosamente."
 # --- Paso 6: Instalación desatendida del sitio ---
 paso "05" "Ejecutando la instalación de WordPress"
 
-wp core install \
-    --url="${DOMAIN_WP}" \
+# Log temporal para capturar la salida de wp core install y diagnosticar errores
+WP_INSTALL_LOG="/tmp/wp_core_install_$(date +%Y%m%d%H%M%S).log"
+
+# Se agrega http:// explicitamente porque WP-CLI con IPs puras sin esquema
+# puede fallar al detectar siteurl/home. Con nombres de dominio WP-CLI lo
+# infiere, con IPs no siempre lo hace.
+if wp core install \
+    --url="http://${DOMAIN_WP}" \
     --title="${WP_TITLE}" \
     --admin_user="${WP_ADMIN_USER}" \
     --admin_password="${WP_ADMIN_PASS}" \
     --admin_email="${WP_ADMIN_EMAIL}" \
     --path="${PATH_WP}" \
-    --allow-root >/dev/null 2>&1 || error "Error durante la ejecución del comando core install de WordPress."
-
-ok "WordPress instalado y base de datos inicializada."
+    --allow-root >"$WP_INSTALL_LOG" 2>&1; then
+    ok "WordPress instalado y base de datos inicializada."
+else
+    advertencia "wp core install falló. Últimas líneas del log:"
+    tail -n 15 "$WP_INSTALL_LOG" | while IFS= read -r line; do
+        info "  $line"
+    done
+    error "Error durante la ejecución del comando core install de WordPress. Log completo: ${WP_INSTALL_LOG}"
+fi
 
 # --- Paso 7: Configuración de permisos y propiedad (Seguridad) ---
 paso "05" "Estableciendo la propiedad y permisos de archivos de WordPress"
@@ -162,12 +179,12 @@ paso "05" "Validando instalación"
 wp core is-installed --path="${PATH_WP}" --allow-root >/dev/null 2>&1 || error "La instalación de WordPress no se completó correctamente."
 ok "Verificación de WP-CLI exitosa: WordPress está marcado como instalado."
 
-# Validación de respuesta HTTP simulando cabecera Host de dominio
-HTTP_STATUS=$(curl -I -s -o /dev/null -w "%{http_code}" -H "Host: ${DOMAIN_WP}" http://localhost || echo "000")
+# Validación de respuesta HTTP directa por IP (sin cabecera Host de dominio)
+HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://${DOMAIN_WP}/" || echo "000")
 if [[ "$HTTP_STATUS" == "200" || "$HTTP_STATUS" == "302" ]]; then
-    ok "Prueba de red local simulando Host ${DOMAIN_WP} exitosa (HTTP ${HTTP_STATUS})."
+    ok "Prueba de red HTTP exitosa (HTTP ${HTTP_STATUS}) → http://${DOMAIN_WP}/"
 else
-    advertencia "La petición HTTP local retornó código ${HTTP_STATUS}. Esto es normal si el Virtual Host correspondiente aún no está habilitado."
+    advertencia "La petición HTTP retornó código ${HTTP_STATUS}. Normal si el Virtual Host aún no está habilitado."
 fi
 
 # --- Paso 9: Instalación del tema institucional ---

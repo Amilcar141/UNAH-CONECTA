@@ -43,6 +43,11 @@ if [[ -z "${DOMAIN_WP:-}" || -z "${PATH_WP:-}" || -z "${DOMAIN_MOODLE:-}" || -z 
     error "Faltan variables requeridas de dominios o rutas en config.env (DOMAIN_WP, PATH_WP, DOMAIN_MOODLE, PATH_MOODLE)."
 fi
 
+# Detectar placeholder sin reemplazar (el usuario no editó config.env)
+if [[ "${DOMAIN_WP}" == *"<IP_PUBLICA>"* || "${DOMAIN_MOODLE}" == *"<IP_PUBLICA>"* ]]; then
+    error "DOMAIN_WP o DOMAIN_MOODLE contienen el placeholder '<IP_PUBLICA>'. Edita config.env y reemplazalo con la IP real del servidor antes de desplegar."
+fi
+
 SOCKET_PATH="/run/php/php${PHP_VERSION}-fpm.sock"
 if [ ! -S "$SOCKET_PATH" ]; then
     error "El socket de PHP-FPM (${SOCKET_PATH}) no existe. Verifique que 04-php.sh se ejecutó."

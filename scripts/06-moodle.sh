@@ -42,6 +42,11 @@ if [[ -z "${MOODLE_DATA_DIR:-}" || -z "${MOODLE_BRANCH:-}" || -z "${MOODLE_SITE_
     error "Faltan variables requeridas de Moodle en config.env (MOODLE_DATA_DIR, MOODLE_BRANCH, etc.)."
 fi
 
+# Detectar placeholder sin reemplazar
+if [[ "${DOMAIN_MOODLE:-}" == *"<IP_PUBLICA>"* ]]; then
+    error "DOMAIN_MOODLE contiene el placeholder '<IP_PUBLICA>'. Edita config.env y reemplazalo con la IP real del servidor antes de desplegar."
+fi
+
 # --- Paso 1: Verificación de idempotencia ---
 paso "06" "Comprobando si Moodle ya está instalado"
 if [ -f "${PATH_MOODLE}/config.php" ]; then
