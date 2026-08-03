@@ -41,8 +41,8 @@ else
 fi
 
 # --- Secuencia principal de despliegue (fuente única de verdad) ---
-# Estos son exactamente los 12 scripts numerados en el orden de deploy-all.sh.
-# PASOS se usa en paso() para mostrar el contador [n/12].
+# Estos son exactamente los 11 scripts numerados en el orden de deploy-all.sh.
+# PASOS se usa en paso() para mostrar el contador [n/11].
 # Tanto deploy-all.sh como paso() deben derivar su lista de este array.
 MAIN_SEQUENCE_SCRIPTS=(
     "01-update.sh"
@@ -55,7 +55,6 @@ MAIN_SEQUENCE_SCRIPTS=(
     "08-security.sh"
     "09-backup.sh"
     "10-webmin.sh"
-    "07b-ssl.sh"
     "11-monitor.sh"
 )
 PASOS=${#MAIN_SEQUENCE_SCRIPTS[@]}

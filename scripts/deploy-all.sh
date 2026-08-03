@@ -3,7 +3,7 @@
 # deploy-all.sh
 # Proyecto: UNAH-CONECTA
 # Función: Orquestador para ejecutar la secuencia completa de despliegue.
-#          Actualmente abarca los scripts del 01 al 11.
+#          Actualmente abarca los scripts del 01 al 11 (sin SSL).
 # Ejecución: sudo ./deploy-all.sh (o mediante menu.sh)
 ###############################################################################
 

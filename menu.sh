@@ -83,36 +83,29 @@ check_services() {
     fi
 }
 
-# --- Diagnóstico: acceso a los dominios configurados ---
+# --- Diagnóstico: acceso a las plataformas configuradas ---
 check_domains() {
     echo ""
-    info "Verificando acceso a los dominios:"
-    local domains=("${DOMAIN_WP:-www.unahconecta.com}" "${DOMAIN_MOODLE:-moodle.unahconecta.com}")
-    for url in "${domains[@]}"; do
-        # Reiniciar variables locales en cada iteración para evitar arrastre entre dominios
+    info "Verificando acceso a las plataformas (por IP):"
+    # Extraer host y puerto de las variables de config.env
+    local url_wp="http://${DOMAIN_WP:-<IP_PUBLICA>}"
+    local host_moodle="${DOMAIN_MOODLE:-<IP_PUBLICA>:8080}"
+    local url_moodle="http://${host_moodle%%:*}:${host_moodle##*:}"
+    [[ "$host_moodle" != *:* ]] && url_moodle="http://${host_moodle}"
+
+    for entry in "WordPress|${url_wp}" "Moodle|${url_moodle}"; do
+        local label="${entry%%|*}"
+        local url="${entry##*|}"
         local code="000"
-        local esquema=""
-
-        # Intentar HTTPS primero (--connect-timeout 3 para no bloquear si el puerto está cerrado)
         code=$(curl -s -o /dev/null --connect-timeout 3 -m 5 -w "%{http_code}" \
-            "https://${url}" 2>/dev/null || echo "000")
-
-        if [[ "$code" != "000" ]]; then
-            esquema="https"
-        else
-            # Fallback a HTTP si HTTPS no responde
-            code=$(curl -s -o /dev/null --connect-timeout 3 -m 5 -w "%{http_code}" \
-                "http://${url}" 2>/dev/null || echo "000")
-            esquema="http"
-        fi
+            "${url}" 2>/dev/null || echo "000")
 
         if [[ "$code" == "000" ]]; then
-            advertencia "${esquema}://${url} no responde (sin conexión o DNS no resuelto)"
+            advertencia "${label} no responde en ${url}"
         elif [[ "$code" =~ ^(200|301|302|303|307|308)$ ]]; then
-            # 200 OK y 30x son respuestas válidas (redirect puede ser http->https)
-            ok "${esquema}://${url} responde correctamente (HTTP ${code})"
+            ok "${label} responde correctamente (HTTP ${code}) → ${url}"
         else
-            advertencia "${esquema}://${url} respondió con HTTP ${code}"
+            advertencia "${label} respondió con HTTP ${code} → ${url}"
         fi
     done
 }
@@ -207,7 +200,7 @@ show_menu() {
     echo "  DIAGNÓSTICO"
     echo "   7) Ver estado de servicios"
     echo "   8) Ver logs"
-    echo "   9) Verificar acceso a los dominios"
+    echo "   9) Verificar acceso a las plataformas (por IP)"
     echo "  10) Información general del servidor"
     echo ""
     echo "  PERSONALIZACIÓN MOODLE"
@@ -219,9 +212,8 @@ show_menu() {
     echo ""
     echo "  CONFIGURACIÓN ADICIONAL"
     echo "  14) Configurar Virtual Hosts (07-vhosts)"
-    echo "  15) Configurar SSL/TLS con Let's Encrypt (07b-ssl)"
-    echo "  16) Configurar Webmin y Reverse Proxy (10-webmin)"
-    echo "  17) Forzar sincronización manual de IP administrativa (DDNS)"
+    echo "  15) Configurar Webmin (10-webmin)"
+    echo "  16) Forzar sincronización manual de IP administrativa (DDNS)"
     echo ""
     echo "   0) Salir"
     echo ""
@@ -253,9 +245,8 @@ while true; do
             fi
             ;;
         14) run_script "07-vhosts.sh" ;;
-        15) run_script "07b-ssl.sh" ;;
-        16) run_script "10-webmin.sh" ;;
-        17)
+        15) run_script "10-webmin.sh" ;;
+        16)
             info "Forzando sincronización de IP administrativa..."
             run_script "sync-admin-ip.sh"
             ;;
