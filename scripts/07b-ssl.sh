@@ -40,7 +40,7 @@ if ! command -v certbot >/dev/null 2>&1; then
             fi
             advertencia "APT está bloqueado por otro proceso. Esperando 10s... ($((_retry+1))/12)"
             sleep 10
-            ((_retry++))
+            _retry=$((_retry + 1))
         else
             error "Error actualizando APT. Detalle:\n$(cat /tmp/apt_update_ssl.log)"
         fi
@@ -54,7 +54,7 @@ if ! command -v certbot >/dev/null 2>&1; then
             fi
             advertencia "APT está bloqueado por otro proceso. Esperando 10s... ($((_retry+1))/12)"
             sleep 10
-            ((_retry++))
+            _retry=$((_retry + 1))
         else
             error "Error instalando certbot. Detalle:\n$(cat /tmp/apt_install_certbot.log)"
         fi
